@@ -1,0 +1,80 @@
+package gateway
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"sync"
+
+	"companion-ai/internal/wechat"
+)
+
+type fakeAgent struct {
+	mu          sync.Mutex
+	reply       string
+	replyCalls  int
+	maintenance []string
+	healthErr   error
+	lastDate    string
+}
+
+func (f *fakeAgent) Reply(context.Context, string, string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replyCalls++
+	return f.reply, nil
+}
+
+func (f *fakeAgent) RunDailyMaintenance(_ context.Context, targetDate string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastDate = targetDate
+	return f.maintenance, nil
+}
+
+func (f *fakeAgent) Check(context.Context) error {
+	return f.healthErr
+}
+
+func (f *fakeAgent) Calls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.replyCalls
+}
+
+type fakeTokens struct {
+	token string
+}
+
+func (f *fakeTokens) Get(context.Context) (string, error) {
+	return f.token, nil
+}
+
+func (f *fakeTokens) Refresh(context.Context) (string, error) {
+	f.token = "REFRESHED"
+	return f.token, nil
+}
+
+type fakePusher struct {
+	mu       sync.Mutex
+	sent     map[string]string
+	failOnce bool
+}
+
+func (p *fakePusher) SendText(_ context.Context, token, openID, text string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.failOnce {
+		p.failOnce = false
+		return &wechat.APIError{ErrCode: 42001, ErrMsg: "expired"}
+	}
+	if p.sent == nil {
+		p.sent = map[string]string{}
+	}
+	p.sent[openID] = token + ":" + text
+	return nil
+}
+
+func slogDiscard() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}

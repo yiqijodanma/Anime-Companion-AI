@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "companion-ai/gen/agentv1;agentv1";
+
+service AgentService {
+  rpc Reply(ReplyRequest) returns (ReplyResponse);
+  rpc RunDailyMaintenance(MaintenanceRequest) returns (MaintenanceResult);
+}
+
+message ReplyRequest {
+  string open_id = 1;
+  string text = 2;
+}
+
+message ReplyResponse {
+  string reply_text = 1;
+}
+
+message MaintenanceRequest {
+  // YYYY-MM-DD for the local-calendar day to summarize and clear.
+  string target_date = 1;
+}
+
+message MaintenanceResult {
+  repeated string greet_open_ids = 1;
+}
