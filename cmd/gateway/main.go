@@ -39,7 +39,7 @@ func main() {
 		DialTimeout:  500 * time.Millisecond,
 		ReadTimeout:  500 * time.Millisecond,
 		WriteTimeout: 500 * time.Millisecond,
-		MaxRetries:   0,
+		MaxRetries:   -1,
 	})
 	defer redisClient.Close()
 
