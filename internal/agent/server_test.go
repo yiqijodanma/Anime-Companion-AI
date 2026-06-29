@@ -84,7 +84,7 @@ func TestListConversationMessagesReturnsOnlyTodayMessagesForOpenID(t *testing.T)
 	require.NotNil(t, resp.Messages[1].CreatedAt)
 }
 
-func TestDeleteConversationMessagesDeletesOnlyTodayMessagesForOpenID(t *testing.T) {
+func TestDeleteConversationMessagesDeletesOnlyTodayMessagesForOpenIDAndIsIdempotent(t *testing.T) {
 	srv, repo := newTestServer(t, "unused")
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.Local)
@@ -94,6 +94,9 @@ func TestDeleteConversationMessagesDeletesOnlyTodayMessagesForOpenID(t *testing.
 	require.NoError(t, repo.DB().Create(&memory.Message{OpenID: "u1", Role: memory.RoleUser, Content: "保留昨天", CreatedAt: yesterday}).Error)
 
 	resp, err := srv.DeleteConversationMessages(context.Background(), &agentv1.DeleteConversationMessagesRequest{OpenId: "u1"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	resp, err = srv.DeleteConversationMessages(context.Background(), &agentv1.DeleteConversationMessagesRequest{OpenId: "u1"})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 

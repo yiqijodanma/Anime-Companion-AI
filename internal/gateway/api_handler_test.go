@@ -82,13 +82,15 @@ func TestAPIDeleteConversationMessages(t *testing.T) {
 	h := &Handlers{Agent: agent, Log: slogDiscard()}
 	h.RegisterRoutes(r)
 
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/conversations/u1/messages", nil))
+	for range 2 {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/conversations/u1/messages", nil))
 
-	require.Equal(t, http.StatusNoContent, w.Code)
-	require.Empty(t, w.Body.String())
+		require.Equal(t, http.StatusNoContent, w.Code)
+		require.Empty(t, w.Body.String())
+	}
 	require.Equal(t, "u1", agent.lastDeleteID)
-	require.Equal(t, 1, agent.deleteCalls)
+	require.Equal(t, 2, agent.deleteCalls)
 }
 
 func TestAPIConversationMessagesAgentError(t *testing.T) {
