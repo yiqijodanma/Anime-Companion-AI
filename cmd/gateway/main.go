@@ -34,7 +34,13 @@ func main() {
 	}
 	defer conn.Close()
 
-	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         cfg.RedisAddr,
+		DialTimeout:  500 * time.Millisecond,
+		ReadTimeout:  500 * time.Millisecond,
+		WriteTimeout: 500 * time.Millisecond,
+		MaxRetries:   0,
+	})
 	defer redisClient.Close()
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}

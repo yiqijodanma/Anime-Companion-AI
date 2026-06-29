@@ -34,7 +34,7 @@ PostgreSQL 默认连接串：
 $env:PG_DSN="postgres://companion:companion@localhost:5432/companion?sslmode=disable"
 ```
 
-Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流。
+Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流，默认限流值为 `30 次/分钟/open_id`。
 
 ## 配置
 

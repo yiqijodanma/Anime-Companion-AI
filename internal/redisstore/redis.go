@@ -64,6 +64,14 @@ type FixedWindowLimiter struct {
 	window time.Duration
 }
 
+const fixedWindowAllowScript = `
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+	redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+return current
+`
+
 func NewFixedWindowLimiter(client *redis.Client, prefix string, limit int64, window time.Duration) *FixedWindowLimiter {
 	return &FixedWindowLimiter{client: client, prefix: prefix, limit: limit, window: window}
 }
@@ -72,14 +80,9 @@ func (l *FixedWindowLimiter) Allow(ctx context.Context, openID string) (bool, er
 	if openID == "" {
 		return true, nil
 	}
-	count, err := l.client.Incr(ctx, l.prefix+openID).Result()
+	count, err := l.client.Eval(ctx, fixedWindowAllowScript, []string{l.prefix + openID}, l.window.Milliseconds()).Int64()
 	if err != nil {
 		return false, err
-	}
-	if count == 1 {
-		if err := l.client.Expire(ctx, l.prefix+openID, l.window).Err(); err != nil {
-			return false, err
-		}
 	}
 	return count <= l.limit, nil
 }

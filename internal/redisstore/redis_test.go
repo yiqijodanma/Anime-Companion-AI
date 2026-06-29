@@ -83,3 +83,24 @@ func TestFixedWindowLimiterLimitsUntilWindowExpires(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed)
 }
+
+func TestFixedWindowLimiterSetsInitialTTLAndResetsAfterWindow(t *testing.T) {
+	s, client := newRedisTestClient(t)
+	window := 1500 * time.Millisecond
+	limiter := NewFixedWindowLimiter(client, "gateway:rl:", 1, window)
+
+	allowed, err := limiter.Allow(context.Background(), "u1")
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.Equal(t, window, s.TTL("gateway:rl:u1"))
+
+	allowed, err = limiter.Allow(context.Background(), "u1")
+	require.NoError(t, err)
+	require.False(t, allowed)
+
+	s.FastForward(window)
+	allowed, err = limiter.Allow(context.Background(), "u1")
+	require.NoError(t, err)
+	require.True(t, allowed)
+	require.Equal(t, window, s.TTL("gateway:rl:u1"))
+}
