@@ -42,6 +42,43 @@ func TestAPIChatBadRequest(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestAPIChatRateLimitedReturns429(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	agent := &fakeAgent{reply: "should not be used"}
+	limiter := &fakeLimiter{allow: false}
+	h := &Handlers{Agent: agent, Log: slogDiscard(), Limiter: limiter}
+	h.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"open_id":"u1","text":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Equal(t, 0, agent.Calls())
+	require.Equal(t, 1, limiter.calls)
+	require.Equal(t, "u1", limiter.lastOpenID)
+}
+
+func TestAPIChatLimiterErrorFailOpen(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	agent := &fakeAgent{reply: "你好团员！"}
+	limiter := &fakeLimiter{err: errors.New("redis down")}
+	h := &Handlers{Agent: agent, Log: slogDiscard(), Limiter: limiter}
+	h.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"open_id":"u1","text":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 1, agent.Calls())
+	require.Equal(t, 1, limiter.calls)
+}
+
 func TestAPIListConversationMessages(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

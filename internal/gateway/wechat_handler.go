@@ -14,12 +14,13 @@ import (
 )
 
 type Handlers struct {
-	Token  string
-	Agent  AgentCaller
-	Tokens TokenSource
-	Pusher Pusher
-	Log    *slog.Logger
-	Dedupe *MsgDeduper
+	Token   string
+	Agent   AgentCaller
+	Tokens  TokenSource
+	Pusher  Pusher
+	Log     *slog.Logger
+	Dedupe  MessageDeduper
+	Limiter RateLimiter
 
 	nowSync *sync.WaitGroup
 }
@@ -73,7 +74,14 @@ func (h *Handlers) receive(c *gin.Context) {
 		c.String(http.StatusOK, "success")
 		return
 	}
-	if h.Dedupe.SeenOrAdd(msg.MsgID) {
+	seen, err := h.Dedupe.SeenOrAdd(c.Request.Context(), msg.MsgID)
+	if err != nil {
+		h.Log.Warn("message dedupe failed", "open_id", msg.FromUserName, "msg_id", msg.MsgID, "err", err)
+	} else if seen {
+		c.String(http.StatusOK, "success")
+		return
+	}
+	if !h.allowOpenID(c.Request.Context(), msg.FromUserName, "wechat") {
 		c.String(http.StatusOK, "success")
 		return
 	}
@@ -101,4 +109,20 @@ func (h *Handlers) handleAsync(ctx context.Context, openID, text string) {
 	if err := pushTextWithTokenRefresh(ctx, h.Tokens, h.Pusher, openID, reply); err != nil {
 		h.Log.Error("push reply failed", "open_id", openID, "err", err)
 	}
+}
+
+func (h *Handlers) allowOpenID(ctx context.Context, openID, source string) bool {
+	if h.Limiter == nil {
+		return true
+	}
+	allowed, err := h.Limiter.Allow(ctx, openID)
+	if err != nil {
+		log := h.Log
+		if log == nil {
+			log = slog.Default()
+		}
+		log.Warn("rate limiter failed", "source", source, "open_id", openID, "err", err)
+		return true
+	}
+	return allowed
 }

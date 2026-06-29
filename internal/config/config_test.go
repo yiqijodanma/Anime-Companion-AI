@@ -12,6 +12,7 @@ func TestLoadGatewayReadsEnv(t *testing.T) {
 	t.Setenv("WECHAT_APPSECRET", "secret")
 	t.Setenv("AGENT_GRPC_ADDR", "127.0.0.1:9090")
 	t.Setenv("GATEWAY_HTTP_ADDR", ":8080")
+	t.Setenv("REDIS_ADDR", "redis:6380")
 
 	cfg, err := LoadGateway()
 	require.NoError(t, err)
@@ -20,6 +21,17 @@ func TestLoadGatewayReadsEnv(t *testing.T) {
 	require.Equal(t, "secret", cfg.WechatAppSecret)
 	require.Equal(t, "127.0.0.1:9090", cfg.AgentGRPCAddr)
 	require.Equal(t, ":8080", cfg.GatewayHTTPAddr)
+	require.Equal(t, "redis:6380", cfg.RedisAddr)
+}
+
+func TestLoadGatewayDefaultsRedisAddr(t *testing.T) {
+	t.Setenv("WECHAT_TOKEN", "tok")
+	t.Setenv("WECHAT_APPID", "appid")
+	t.Setenv("WECHAT_APPSECRET", "secret")
+
+	cfg, err := LoadGateway()
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:6379", cfg.RedisAddr)
 }
 
 func TestLoadGatewayMissingRequiredFails(t *testing.T) {

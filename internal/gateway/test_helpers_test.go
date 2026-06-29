@@ -79,6 +79,37 @@ func (f *fakeTokens) Refresh(context.Context) (string, error) {
 	return f.token, nil
 }
 
+type fakeLimiter struct {
+	mu         sync.Mutex
+	allow      bool
+	err        error
+	calls      int
+	lastOpenID string
+}
+
+func (f *fakeLimiter) Allow(_ context.Context, openID string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.lastOpenID = openID
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.allow, nil
+}
+
+type fakeDeduper struct {
+	seen bool
+	err  error
+}
+
+func (f *fakeDeduper) SeenOrAdd(context.Context, string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.seen, nil
+}
+
 type fakePusher struct {
 	mu       sync.Mutex
 	sent     map[string]string

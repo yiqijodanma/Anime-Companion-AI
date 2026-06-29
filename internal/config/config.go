@@ -11,6 +11,7 @@ type GatewayConfig struct {
 	WechatAppSecret string
 	AgentGRPCAddr   string
 	GatewayHTTPAddr string
+	RedisAddr       string
 }
 
 type AgentConfig struct {
@@ -34,6 +35,7 @@ func LoadGateway() (*GatewayConfig, error) {
 		WechatAppSecret: os.Getenv("WECHAT_APPSECRET"),
 		AgentGRPCAddr:   env("AGENT_GRPC_ADDR", "127.0.0.1:9090"),
 		GatewayHTTPAddr: env("GATEWAY_HTTP_ADDR", ":80"),
+		RedisAddr:       env("REDIS_ADDR", "127.0.0.1:6379"),
 	}
 	if cfg.WechatToken == "" {
 		return nil, fmt.Errorf("WECHAT_TOKEN is required")

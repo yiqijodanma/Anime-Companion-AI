@@ -1,6 +1,17 @@
 package gateway
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
+
+type MessageDeduper interface {
+	SeenOrAdd(ctx context.Context, id string) (bool, error)
+}
+
+type RateLimiter interface {
+	Allow(ctx context.Context, openID string) (bool, error)
+}
 
 type MsgDeduper struct {
 	mu   sync.Mutex
@@ -11,15 +22,15 @@ func NewMsgDeduper() *MsgDeduper {
 	return &MsgDeduper{seen: map[string]struct{}{}}
 }
 
-func (d *MsgDeduper) SeenOrAdd(id string) bool {
+func (d *MsgDeduper) SeenOrAdd(_ context.Context, id string) (bool, error) {
 	if id == "" {
-		return false
+		return false, nil
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, ok := d.seen[id]; ok {
-		return true
+		return true, nil
 	}
 	d.seen[id] = struct{}{}
-	return false
+	return false, nil
 }

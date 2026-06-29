@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"companion-ai/internal/config"
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/logging"
+	"companion-ai/internal/redisstore"
 	"companion-ai/internal/wechat"
 )
 
@@ -32,8 +34,12 @@ func main() {
 	}
 	defer conn.Close()
 
+	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	defer redisClient.Close()
+
 	httpClient := &http.Client{Timeout: 10 * time.Second}
-	tokens := wechat.NewTokenManager(cfg.WechatAppID, cfg.WechatAppSecret, httpClient)
+	tokens := wechat.NewTokenManager(cfg.WechatAppID, cfg.WechatAppSecret, httpClient).
+		WithCache(redisstore.NewTokenCache(redisClient, "gateway:wechat:access_token"))
 	pusher := wechat.NewKFClient(httpClient)
 	agentClient := gateway.NewAgentClient(conn)
 
@@ -43,7 +49,13 @@ func main() {
 		Tokens: tokens,
 		Pusher: pusher,
 		Log:    log,
-		Dedupe: gateway.NewMsgDeduper(),
+		Dedupe: redisstore.NewMessageDeduper(redisClient, "gateway:wechat:msg:", 72*time.Hour),
+		Limiter: redisstore.NewFixedWindowLimiter(
+			redisClient,
+			"gateway:open_id:",
+			30,
+			time.Minute,
+		),
 	}
 
 	cronInst := gateway.StartCron(agentClient, tokens, pusher, log)

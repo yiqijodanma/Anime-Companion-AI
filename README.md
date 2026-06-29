@@ -34,13 +34,13 @@ PostgreSQL 默认连接串：
 $env:PG_DSN="postgres://companion:companion@localhost:5432/companion?sslmode=disable"
 ```
 
-Redis 目前只作为本地基础设施预留，后续再接入 MsgId 去重、access token 缓存或限流。
+Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流。
 
 ## 配置
 
 复制 `.env.example` 并填写环境变量，或在启动服务前直接设置环境变量：
 
-- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AGENT_GRPC_ADDR`、`GATEWAY_HTTP_ADDR`
+- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AGENT_GRPC_ADDR`、`GATEWAY_HTTP_ADDR`、`REDIS_ADDR`
 - Agent：`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`、`PG_DSN`、`AGENT_GRPC_ADDR`
 
 DeepSeek OpenAI 兼容 Base URL 固定为 `https://api.deepseek.com`，模型示例为 `deepseek-v4-flash`。

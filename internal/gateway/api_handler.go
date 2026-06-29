@@ -39,6 +39,10 @@ func (h *Handlers) apiChat(c *gin.Context) {
 		apiError(c, http.StatusBadRequest, "invalid_request", "open_id 和 text 必填")
 		return
 	}
+	if !h.allowOpenID(c.Request.Context(), req.OpenID, "api_chat") {
+		apiError(c, http.StatusTooManyRequests, "rate_limited", "too many requests")
+		return
+	}
 	reply, err := h.Agent.Reply(c.Request.Context(), req.OpenID, req.Text)
 	if err != nil {
 		apiError(c, http.StatusBadGateway, "agent_error", err.Error())
