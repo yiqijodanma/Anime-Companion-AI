@@ -17,8 +17,8 @@
 `微信测试号 / REST 客户端 -> Gateway(Gin) -> gRPC -> Agent(Eino + DeepSeek) -> PostgreSQL`
 
 - Gateway：暴露 `/wechat`、`/healthz`、`/api/v1/chat`、`/api/v1/conversations/:open_id/messages`；校验微信签名；做 MsgId 去重、open_id 限流、access_token 缓存；通过客服消息发送回复。
-- Agent：实现 gRPC `Reply`、`Check`、`RunDailyMaintenance`、会话消息查询和删除；组装凉宫春日人设提示词；调用 DeepSeek；读写记忆。
-- PostgreSQL：保存消息、每日摘要和维护结果，是记忆数据源。
+- Agent：实现 gRPC `Reply`、`RunDailyMaintenance`、会话消息查询和删除，并注册标准 gRPC health service；组装凉宫春日人设提示词；调用 DeepSeek；读写记忆。
+- PostgreSQL：保存消息和每日摘要，是记忆数据源。
 - Redis：仅作为 Gateway 运行缓存，不保存业务真相。
 
 ## 微信消息流程
@@ -52,7 +52,7 @@ Agent 使用 DeepSeek 的 OpenAI 兼容接口，Base URL 固定为 `https://api.
 
 ## healthz
 
-`GET /healthz` 由 Gateway 调 Agent `Check`。只要 Agent 进程启动且配置通过，就可以用非空占位 DeepSeek key 做连通性 smoke test；它不会实际请求 DeepSeek。
+`GET /healthz` 由 Gateway 调 Agent 的标准 gRPC health service。只要 Agent 进程启动且配置通过，就可以用非空占位 DeepSeek key 做连通性 smoke test；它不会实际请求 DeepSeek。
 
 ## 测试策略
 
