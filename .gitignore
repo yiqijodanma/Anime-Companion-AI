@@ -33,5 +33,3 @@ go.work.sum
 
 # Local git worktrees used by superpowers workflows
 .worktrees/
-
-/docs
