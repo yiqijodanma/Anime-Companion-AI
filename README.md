@@ -12,7 +12,7 @@
 
 ## 架构
 
-`Gateway(Gin, :80) -> gRPC -> Agent(Eino + DeepSeek) -> PostgreSQL`
+`Gateway(Gin) -> gRPC -> Agent(Eino + DeepSeek) -> PostgreSQL`
 
 ## 本地测试
 
@@ -36,6 +36,12 @@ $env:PG_DSN="postgres://companion:companion@localhost:5432/companion?sslmode=dis
 
 Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流，默认限流值为 `30 次/分钟/open_id`。
 
+本地手动启动 Gateway 建议监听 8080，避免占用 80 端口：
+
+```powershell
+$env:GATEWAY_HTTP_ADDR=":8080"
+```
+
 ## 配置
 
 复制 `.env.example` 并填写环境变量，或在启动服务前直接设置环境变量：
@@ -56,10 +62,32 @@ bin/agent.exe
 再启动 Gateway：
 
 ```powershell
+$env:GATEWAY_HTTP_ADDR=":8080"
 bin/gateway.exe
 ```
 
 日志写入项目根目录 `log/agent.log` 和 `log/gateway.log`。
+
+## 本地 smoke test
+
+`/healthz` 只检查 Gateway 到 Agent 的 gRPC 连通性。Agent 启动时要求 `DEEPSEEK_API_KEY` 非空，因此可以用非空占位值验证 `/healthz`；它不会实际请求 DeepSeek。
+
+```powershell
+curl.exe http://localhost:8080/healthz
+```
+
+REST 对话成功路径需要真实 DeepSeek key 和可访问外网：
+
+```powershell
+curl.exe -X POST http://localhost:8080/api/v1/chat -H "Content-Type: application/json" -d "{\"open_id\":\"u1\",\"text\":\"你好\"}"
+```
+
+当天记忆管理接口：
+
+```powershell
+curl.exe http://localhost:8080/api/v1/conversations/u1/messages
+curl.exe -X DELETE http://localhost:8080/api/v1/conversations/u1/messages
+```
 
 ## 微信测试号配置
 
@@ -67,8 +95,4 @@ bin/gateway.exe
 2. 接口 URL 填 `http://47.82.114.17/wechat`，Token 填 `WECHAT_TOKEN`。
 3. 扫码关注测试号后即可私聊。
 
-本地联调不走微信：
-
-```powershell
-curl.exe -X POST http://localhost:80/api/v1/chat -H "Content-Type: application/json" -d "{\"open_id\":\"u1\",\"text\":\"你好\"}"
-```
+真实 `/wechat` 回调需要公网 URL、微信测试号凭据和微信可访问的 Gateway。仅本地启动服务时，请使用上面的 REST smoke test。
