@@ -64,4 +64,21 @@ func TestEndToEndReplyThroughGRPC(t *testing.T) {
 	msgs, err := repo.TodayMessages("u1")
 	require.NoError(t, err)
 	require.Len(t, msgs, 2)
+
+	clientMsgs, err := client.ListMessages(context.Background(), "u1")
+	require.NoError(t, err)
+	require.Len(t, clientMsgs, 2)
+	require.Equal(t, uint64(msgs[0].ID), clientMsgs[0].ID)
+	require.Equal(t, memory.RoleUser, clientMsgs[0].Role)
+	require.Equal(t, "你好", clientMsgs[0].Content)
+	require.NotEmpty(t, clientMsgs[0].CreatedAt)
+	require.Equal(t, uint64(msgs[1].ID), clientMsgs[1].ID)
+	require.Equal(t, memory.RoleAssistant, clientMsgs[1].Role)
+	require.Equal(t, "哼，本团长在呢！", clientMsgs[1].Content)
+	require.NotEmpty(t, clientMsgs[1].CreatedAt)
+
+	require.NoError(t, client.DeleteMessages(context.Background(), "u1"))
+	msgs, err = repo.TodayMessages("u1")
+	require.NoError(t, err)
+	require.Empty(t, msgs)
 }

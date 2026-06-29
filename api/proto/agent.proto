@@ -2,11 +2,15 @@ syntax = "proto3";
 
 package agent.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "companion-ai/gen/agentv1;agentv1";
 
 service AgentService {
   rpc Reply(ReplyRequest) returns (ReplyResponse);
   rpc RunDailyMaintenance(MaintenanceRequest) returns (MaintenanceResult);
+  rpc ListConversationMessages(ListConversationMessagesRequest) returns (ListConversationMessagesResponse);
+  rpc DeleteConversationMessages(DeleteConversationMessagesRequest) returns (DeleteConversationMessagesResponse);
 }
 
 message ReplyRequest {
@@ -26,3 +30,24 @@ message MaintenanceRequest {
 message MaintenanceResult {
   repeated string greet_open_ids = 1;
 }
+
+message ConversationMessage {
+  uint64 id = 1;
+  string role = 2;
+  string content = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message ListConversationMessagesRequest {
+  string open_id = 1;
+}
+
+message ListConversationMessagesResponse {
+  repeated ConversationMessage messages = 1;
+}
+
+message DeleteConversationMessagesRequest {
+  string open_id = 1;
+}
+
+message DeleteConversationMessagesResponse {}

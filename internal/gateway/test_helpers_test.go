@@ -10,12 +10,18 @@ import (
 )
 
 type fakeAgent struct {
-	mu          sync.Mutex
-	reply       string
-	replyCalls  int
-	maintenance []string
-	healthErr   error
-	lastDate    string
+	mu           sync.Mutex
+	reply        string
+	replyCalls   int
+	maintenance  []string
+	healthErr    error
+	lastDate     string
+	messages     []ConversationMessage
+	listErr      error
+	deleteErr    error
+	lastListID   string
+	lastDeleteID string
+	deleteCalls  int
 }
 
 func (f *fakeAgent) Reply(context.Context, string, string) (string, error) {
@@ -30,6 +36,24 @@ func (f *fakeAgent) RunDailyMaintenance(_ context.Context, targetDate string) ([
 	defer f.mu.Unlock()
 	f.lastDate = targetDate
 	return f.maintenance, nil
+}
+
+func (f *fakeAgent) ListMessages(_ context.Context, openID string) ([]ConversationMessage, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastListID = openID
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return append([]ConversationMessage(nil), f.messages...), nil
+}
+
+func (f *fakeAgent) DeleteMessages(_ context.Context, openID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastDeleteID = openID
+	f.deleteCalls++
+	return f.deleteErr
 }
 
 func (f *fakeAgent) Check(context.Context) error {

@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"companion-ai/gen/agentv1"
 	"companion-ai/internal/chat"
 	"companion-ai/internal/memory"
@@ -63,6 +67,38 @@ func (s *Server) Reply(ctx context.Context, req *agentv1.ReplyRequest) (*agentv1
 		return nil, err
 	}
 	return &agentv1.ReplyResponse{ReplyText: reply}, nil
+}
+
+func (s *Server) ListConversationMessages(ctx context.Context, req *agentv1.ListConversationMessagesRequest) (*agentv1.ListConversationMessagesResponse, error) {
+	openID := req.GetOpenId()
+	if openID == "" {
+		return nil, status.Error(codes.InvalidArgument, "open_id is required")
+	}
+	msgs, err := s.repo.TodayMessages(openID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*agentv1.ConversationMessage, 0, len(msgs))
+	for _, msg := range msgs {
+		out = append(out, &agentv1.ConversationMessage{
+			Id:        uint64(msg.ID),
+			Role:      msg.Role,
+			Content:   msg.Content,
+			CreatedAt: timestamppb.New(msg.CreatedAt),
+		})
+	}
+	return &agentv1.ListConversationMessagesResponse{Messages: out}, nil
+}
+
+func (s *Server) DeleteConversationMessages(ctx context.Context, req *agentv1.DeleteConversationMessagesRequest) (*agentv1.DeleteConversationMessagesResponse, error) {
+	openID := req.GetOpenId()
+	if openID == "" {
+		return nil, status.Error(codes.InvalidArgument, "open_id is required")
+	}
+	if err := s.repo.DeleteTodayMessages(openID); err != nil {
+		return nil, err
+	}
+	return &agentv1.DeleteConversationMessagesResponse{}, nil
 }
 
 func (s *Server) RunDailyMaintenance(ctx context.Context, req *agentv1.MaintenanceRequest) (*agentv1.MaintenanceResult, error) {

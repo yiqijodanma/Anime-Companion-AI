@@ -9,6 +9,7 @@ package agentv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -206,11 +207,247 @@ func (x *MaintenanceResult) GetGreetOpenIds() []string {
 	return nil
 }
 
+type ConversationMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConversationMessage) Reset() {
+	*x = ConversationMessage{}
+	mi := &file_api_proto_agent_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationMessage) ProtoMessage() {}
+
+func (x *ConversationMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationMessage.ProtoReflect.Descriptor instead.
+func (*ConversationMessage) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ConversationMessage) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ConversationMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+type ListConversationMessagesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OpenId        string                 `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationMessagesRequest) Reset() {
+	*x = ListConversationMessagesRequest{}
+	mi := &file_api_proto_agent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationMessagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationMessagesRequest) ProtoMessage() {}
+
+func (x *ListConversationMessagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationMessagesRequest.ProtoReflect.Descriptor instead.
+func (*ListConversationMessagesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListConversationMessagesRequest) GetOpenId() string {
+	if x != nil {
+		return x.OpenId
+	}
+	return ""
+}
+
+type ListConversationMessagesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Messages      []*ConversationMessage `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationMessagesResponse) Reset() {
+	*x = ListConversationMessagesResponse{}
+	mi := &file_api_proto_agent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationMessagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationMessagesResponse) ProtoMessage() {}
+
+func (x *ListConversationMessagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationMessagesResponse.ProtoReflect.Descriptor instead.
+func (*ListConversationMessagesResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListConversationMessagesResponse) GetMessages() []*ConversationMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+type DeleteConversationMessagesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OpenId        string                 `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteConversationMessagesRequest) Reset() {
+	*x = DeleteConversationMessagesRequest{}
+	mi := &file_api_proto_agent_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationMessagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationMessagesRequest) ProtoMessage() {}
+
+func (x *DeleteConversationMessagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationMessagesRequest.ProtoReflect.Descriptor instead.
+func (*DeleteConversationMessagesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeleteConversationMessagesRequest) GetOpenId() string {
+	if x != nil {
+		return x.OpenId
+	}
+	return ""
+}
+
+type DeleteConversationMessagesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteConversationMessagesResponse) Reset() {
+	*x = DeleteConversationMessagesResponse{}
+	mi := &file_api_proto_agent_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationMessagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationMessagesResponse) ProtoMessage() {}
+
+func (x *DeleteConversationMessagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationMessagesResponse.ProtoReflect.Descriptor instead.
+func (*DeleteConversationMessagesResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_proto_rawDescGZIP(), []int{8}
+}
+
 var File_api_proto_agent_proto protoreflect.FileDescriptor
 
 const file_api_proto_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x15api/proto/agent.proto\x12\bagent.v1\";\n" +
+	"\x15api/proto/agent.proto\x12\bagent.v1\x1a\x1fgoogle/protobuf/timestamp.proto\";\n" +
 	"\fReplyRequest\x12\x17\n" +
 	"\aopen_id\x18\x01 \x01(\tR\x06openId\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\".\n" +
@@ -221,10 +458,25 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\vtarget_date\x18\x01 \x01(\tR\n" +
 	"targetDate\"9\n" +
 	"\x11MaintenanceResult\x12$\n" +
-	"\x0egreet_open_ids\x18\x01 \x03(\tR\fgreetOpenIds2\x9a\x01\n" +
+	"\x0egreet_open_ids\x18\x01 \x03(\tR\fgreetOpenIds\"\x8e\x01\n" +
+	"\x13ConversationMessage\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x129\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\":\n" +
+	"\x1fListConversationMessagesRequest\x12\x17\n" +
+	"\aopen_id\x18\x01 \x01(\tR\x06openId\"]\n" +
+	" ListConversationMessagesResponse\x129\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1d.agent.v1.ConversationMessageR\bmessages\"<\n" +
+	"!DeleteConversationMessagesRequest\x12\x17\n" +
+	"\aopen_id\x18\x01 \x01(\tR\x06openId\"$\n" +
+	"\"DeleteConversationMessagesResponse2\x86\x03\n" +
 	"\fAgentService\x128\n" +
 	"\x05Reply\x12\x16.agent.v1.ReplyRequest\x1a\x17.agent.v1.ReplyResponse\x12P\n" +
-	"\x13RunDailyMaintenance\x12\x1c.agent.v1.MaintenanceRequest\x1a\x1b.agent.v1.MaintenanceResultB\"Z companion-ai/gen/agentv1;agentv1b\x06proto3"
+	"\x13RunDailyMaintenance\x12\x1c.agent.v1.MaintenanceRequest\x1a\x1b.agent.v1.MaintenanceResult\x12q\n" +
+	"\x18ListConversationMessages\x12).agent.v1.ListConversationMessagesRequest\x1a*.agent.v1.ListConversationMessagesResponse\x12w\n" +
+	"\x1aDeleteConversationMessages\x12+.agent.v1.DeleteConversationMessagesRequest\x1a,.agent.v1.DeleteConversationMessagesResponseB\"Z companion-ai/gen/agentv1;agentv1b\x06proto3"
 
 var (
 	file_api_proto_agent_proto_rawDescOnce sync.Once
@@ -238,23 +490,35 @@ func file_api_proto_agent_proto_rawDescGZIP() []byte {
 	return file_api_proto_agent_proto_rawDescData
 }
 
-var file_api_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_api_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_api_proto_agent_proto_goTypes = []any{
-	(*ReplyRequest)(nil),       // 0: agent.v1.ReplyRequest
-	(*ReplyResponse)(nil),      // 1: agent.v1.ReplyResponse
-	(*MaintenanceRequest)(nil), // 2: agent.v1.MaintenanceRequest
-	(*MaintenanceResult)(nil),  // 3: agent.v1.MaintenanceResult
+	(*ReplyRequest)(nil),                       // 0: agent.v1.ReplyRequest
+	(*ReplyResponse)(nil),                      // 1: agent.v1.ReplyResponse
+	(*MaintenanceRequest)(nil),                 // 2: agent.v1.MaintenanceRequest
+	(*MaintenanceResult)(nil),                  // 3: agent.v1.MaintenanceResult
+	(*ConversationMessage)(nil),                // 4: agent.v1.ConversationMessage
+	(*ListConversationMessagesRequest)(nil),    // 5: agent.v1.ListConversationMessagesRequest
+	(*ListConversationMessagesResponse)(nil),   // 6: agent.v1.ListConversationMessagesResponse
+	(*DeleteConversationMessagesRequest)(nil),  // 7: agent.v1.DeleteConversationMessagesRequest
+	(*DeleteConversationMessagesResponse)(nil), // 8: agent.v1.DeleteConversationMessagesResponse
+	(*timestamppb.Timestamp)(nil),              // 9: google.protobuf.Timestamp
 }
 var file_api_proto_agent_proto_depIdxs = []int32{
-	0, // 0: agent.v1.AgentService.Reply:input_type -> agent.v1.ReplyRequest
-	2, // 1: agent.v1.AgentService.RunDailyMaintenance:input_type -> agent.v1.MaintenanceRequest
-	1, // 2: agent.v1.AgentService.Reply:output_type -> agent.v1.ReplyResponse
-	3, // 3: agent.v1.AgentService.RunDailyMaintenance:output_type -> agent.v1.MaintenanceResult
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	9, // 0: agent.v1.ConversationMessage.created_at:type_name -> google.protobuf.Timestamp
+	4, // 1: agent.v1.ListConversationMessagesResponse.messages:type_name -> agent.v1.ConversationMessage
+	0, // 2: agent.v1.AgentService.Reply:input_type -> agent.v1.ReplyRequest
+	2, // 3: agent.v1.AgentService.RunDailyMaintenance:input_type -> agent.v1.MaintenanceRequest
+	5, // 4: agent.v1.AgentService.ListConversationMessages:input_type -> agent.v1.ListConversationMessagesRequest
+	7, // 5: agent.v1.AgentService.DeleteConversationMessages:input_type -> agent.v1.DeleteConversationMessagesRequest
+	1, // 6: agent.v1.AgentService.Reply:output_type -> agent.v1.ReplyResponse
+	3, // 7: agent.v1.AgentService.RunDailyMaintenance:output_type -> agent.v1.MaintenanceResult
+	6, // 8: agent.v1.AgentService.ListConversationMessages:output_type -> agent.v1.ListConversationMessagesResponse
+	8, // 9: agent.v1.AgentService.DeleteConversationMessages:output_type -> agent.v1.DeleteConversationMessagesResponse
+	6, // [6:10] is the sub-list for method output_type
+	2, // [2:6] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_agent_proto_init() }
@@ -268,7 +532,7 @@ func file_api_proto_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_agent_proto_rawDesc), len(file_api_proto_agent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

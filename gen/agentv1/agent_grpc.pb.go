@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_Reply_FullMethodName               = "/agent.v1.AgentService/Reply"
-	AgentService_RunDailyMaintenance_FullMethodName = "/agent.v1.AgentService/RunDailyMaintenance"
+	AgentService_Reply_FullMethodName                      = "/agent.v1.AgentService/Reply"
+	AgentService_RunDailyMaintenance_FullMethodName        = "/agent.v1.AgentService/RunDailyMaintenance"
+	AgentService_ListConversationMessages_FullMethodName   = "/agent.v1.AgentService/ListConversationMessages"
+	AgentService_DeleteConversationMessages_FullMethodName = "/agent.v1.AgentService/DeleteConversationMessages"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -29,6 +31,8 @@ const (
 type AgentServiceClient interface {
 	Reply(ctx context.Context, in *ReplyRequest, opts ...grpc.CallOption) (*ReplyResponse, error)
 	RunDailyMaintenance(ctx context.Context, in *MaintenanceRequest, opts ...grpc.CallOption) (*MaintenanceResult, error)
+	ListConversationMessages(ctx context.Context, in *ListConversationMessagesRequest, opts ...grpc.CallOption) (*ListConversationMessagesResponse, error)
+	DeleteConversationMessages(ctx context.Context, in *DeleteConversationMessagesRequest, opts ...grpc.CallOption) (*DeleteConversationMessagesResponse, error)
 }
 
 type agentServiceClient struct {
@@ -59,12 +63,34 @@ func (c *agentServiceClient) RunDailyMaintenance(ctx context.Context, in *Mainte
 	return out, nil
 }
 
+func (c *agentServiceClient) ListConversationMessages(ctx context.Context, in *ListConversationMessagesRequest, opts ...grpc.CallOption) (*ListConversationMessagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConversationMessagesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListConversationMessages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DeleteConversationMessages(ctx context.Context, in *DeleteConversationMessagesRequest, opts ...grpc.CallOption) (*DeleteConversationMessagesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteConversationMessagesResponse)
+	err := c.cc.Invoke(ctx, AgentService_DeleteConversationMessages_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
 type AgentServiceServer interface {
 	Reply(context.Context, *ReplyRequest) (*ReplyResponse, error)
 	RunDailyMaintenance(context.Context, *MaintenanceRequest) (*MaintenanceResult, error)
+	ListConversationMessages(context.Context, *ListConversationMessagesRequest) (*ListConversationMessagesResponse, error)
+	DeleteConversationMessages(context.Context, *DeleteConversationMessagesRequest) (*DeleteConversationMessagesResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -80,6 +106,12 @@ func (UnimplementedAgentServiceServer) Reply(context.Context, *ReplyRequest) (*R
 }
 func (UnimplementedAgentServiceServer) RunDailyMaintenance(context.Context, *MaintenanceRequest) (*MaintenanceResult, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunDailyMaintenance not implemented")
+}
+func (UnimplementedAgentServiceServer) ListConversationMessages(context.Context, *ListConversationMessagesRequest) (*ListConversationMessagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConversationMessages not implemented")
+}
+func (UnimplementedAgentServiceServer) DeleteConversationMessages(context.Context, *DeleteConversationMessagesRequest) (*DeleteConversationMessagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteConversationMessages not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -138,6 +170,42 @@ func _AgentService_RunDailyMaintenance_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ListConversationMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConversationMessagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListConversationMessages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListConversationMessages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListConversationMessages(ctx, req.(*ListConversationMessagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DeleteConversationMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteConversationMessagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DeleteConversationMessages(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DeleteConversationMessages_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DeleteConversationMessages(ctx, req.(*DeleteConversationMessagesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +220,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunDailyMaintenance",
 			Handler:    _AgentService_RunDailyMaintenance_Handler,
+		},
+		{
+			MethodName: "ListConversationMessages",
+			Handler:    _AgentService_ListConversationMessages_Handler,
+		},
+		{
+			MethodName: "DeleteConversationMessages",
+			Handler:    _AgentService_DeleteConversationMessages_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
