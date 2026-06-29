@@ -5,6 +5,7 @@
 当前已整理的文档：
 
 - 设计文档：[docs/superpowers/specs/2026-06-24-companion-ai-haruhi-wechat-design.md](docs/superpowers/specs/2026-06-24-companion-ai-haruhi-wechat-design.md)
+- 本地基础设施设计：[docs/superpowers/specs/2026-06-29-local-infra-compose-design.md](docs/superpowers/specs/2026-06-29-local-infra-compose-design.md)
 - 实现计划：[docs/superpowers/plans/2026-06-24-companion-ai-haruhi-wechat.md](docs/superpowers/plans/2026-06-24-companion-ai-haruhi-wechat.md)
 
 2026-06-28 已补充可执行性修订：配置拆分、DeepSeek 最新接入说明、每日维护日期窗口、REST MVP 范围、healthz 真实检查、微信消息去重与 token 失效重试。
@@ -16,10 +17,24 @@
 ## 本地测试
 
 ```powershell
+docker compose up -d postgres redis
 go test ./...
 go build -o bin/agent.exe ./cmd/agent
 go build -o bin/gateway.exe ./cmd/gateway
 ```
+
+`docker-compose.yml` 只启动本地测试基础设施，不容器化 Go 服务：
+
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+
+PostgreSQL 默认连接串：
+
+```powershell
+$env:PG_DSN="postgres://companion:companion@localhost:5432/companion?sslmode=disable"
+```
+
+Redis 目前只作为本地基础设施预留，后续再接入 MsgId 去重、access token 缓存或限流。
 
 ## 配置
 
