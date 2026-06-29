@@ -31,4 +31,7 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# Local git worktrees used by superpowers workflows
+.worktrees/
+
 /docs
