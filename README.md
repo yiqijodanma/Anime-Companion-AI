@@ -9,23 +9,26 @@
 ## 本地测试
 
 ```powershell
-docker compose up -d postgres redis
-go test ./...
-New-Item -ItemType Directory -Force bin
-go build -o bin/agent.exe ./cmd/agent
-go build -o bin/gateway.exe ./cmd/gateway
+make db
+make test
 ```
 
-`docker-compose.yml` 只启动本地测试基础设施，不容器化 Go 服务：
+`make db` 会在 `.env` 不存在时从 `.env.example` 复制生成，并使用 dev 端口启动 PostgreSQL / Redis，然后执行 SQL migration。数据库表结构不由 GORM 自动创建，schema 来源是 `db/migrations`。
+
+默认 dev 基础设施：
 
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
 
-PostgreSQL 默认连接串：
+`make test` 复用 dev PostgreSQL，测试会创建临时 schema 并执行 migration，不依赖 SQLite 或 GORM `AutoMigrate`。
+
+如需直接运行完整容器环境：
 
 ```powershell
-$env:PG_DSN="postgres://companion:companion@localhost:5432/companion?sslmode=disable"
+make docker
 ```
+
+`make docker` 使用 pro 端口配置构建并运行 Agent、Gateway、PostgreSQL、Redis 和 migration。
 
 Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流，默认限流值为 `30 次/分钟/open_id`。
 
@@ -37,29 +40,47 @@ $env:GATEWAY_HTTP_ADDR=":8080"
 
 ## 配置
 
-参考 `.env.example` 填写环境变量，并在启动服务前设置到当前 shell；程序只读取系统环境变量，不会自动加载 `.env` 文件。
+参考 `.env.example` 填写单个 `.env` 文件。Makefile 会从 `.env` 读取 dev/pro 两套端口配置，并导出程序实际使用的 `PG_DSN`、`REDIS_ADDR`、`GATEWAY_HTTP_ADDR`、`AGENT_GRPC_ADDR`。
 
-- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AGENT_GRPC_ADDR`、`GATEWAY_HTTP_ADDR`、`REDIS_ADDR`
-- Agent：`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`、`PG_DSN`、`AGENT_GRPC_ADDR`
+- dev：`DEV_POSTGRES_PORT`、`DEV_REDIS_PORT`、`DEV_GATEWAY_HTTP_PORT`、`DEV_AGENT_GRPC_PORT`
+- pro：`PRO_POSTGRES_PORT`、`PRO_REDIS_PORT`、`PRO_GATEWAY_HTTP_PORT`、`PRO_AGENT_GRPC_PORT`
+- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`
+- Agent：`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`
+- PostgreSQL：`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
 
 DeepSeek OpenAI 兼容 Base URL 固定为 `https://api.deepseek.com`，模型示例为 `deepseek-v4-flash`。
 
 ## 启动
 
-先启动 Agent：
+开发环境：
 
 ```powershell
-bin/agent.exe
+make db
+make dev
 ```
 
-再启动 Gateway：
+`make dev` 会构建二进制并打印两个启动命令。按提示分别在两个终端启动：
 
 ```powershell
-$env:GATEWAY_HTTP_ADDR=":8080"
-bin/gateway.exe
+make run-agent-dev
+make run-gateway-dev
 ```
 
-日志写入项目根目录 `log/agent.log` 和 `log/gateway.log`。
+模拟生产配置但不使用项目镜像：
+
+```powershell
+make pro
+make run-agent-pro
+make run-gateway-pro
+```
+
+完整容器化运行：
+
+```powershell
+make docker
+```
+
+日志写入项目根目录 `log/agent.log` 和 `log/gateway.log`；容器运行时也可以用 `make logs` 查看 Docker 日志。
 
 ## 本地 smoke test
 

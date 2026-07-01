@@ -1,0 +1,10 @@
+.git
+.codegraph
+.worktrees
+bin
+log
+docs
+.env
+*.exe
+*.test
+coverage.*

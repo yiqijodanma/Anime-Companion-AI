@@ -1,26 +1,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: anime-companion-postgres
     environment:
-      POSTGRES_DB: companion
-      POSTGRES_USER: companion
-      POSTGRES_PASSWORD: companion
+      POSTGRES_DB: ${POSTGRES_DB:-companion}
+      POSTGRES_USER: ${POSTGRES_USER:-companion}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-companion}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U companion -d companion"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-companion} -d ${POSTGRES_DB:-companion}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: anime-companion-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -28,6 +26,55 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  migrate:
+    image: migrate/migrate:4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://${POSTGRES_USER:-companion}:${POSTGRES_PASSWORD:-companion}@postgres:5432/${POSTGRES_DB:-companion}?sslmode=disable",
+        "up"
+      ]
+    restart: "no"
+
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      PG_DSN: postgres://${POSTGRES_USER:-companion}:${POSTGRES_PASSWORD:-companion}@postgres:5432/${POSTGRES_DB:-companion}?sslmode=disable
+      AGENT_GRPC_ADDR: :${AGENT_GRPC_PORT:-9090}
+    ports:
+      - "${AGENT_GRPC_PORT:-9090}:${AGENT_GRPC_PORT:-9090}"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    depends_on:
+      agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      WECHAT_TOKEN: ${WECHAT_TOKEN}
+      WECHAT_APPID: ${WECHAT_APPID}
+      WECHAT_APPSECRET: ${WECHAT_APPSECRET}
+      AGENT_GRPC_ADDR: agent:${AGENT_GRPC_PORT:-9090}
+      GATEWAY_HTTP_ADDR: :${GATEWAY_HTTP_PORT:-8080}
+      REDIS_ADDR: redis:6379
+    ports:
+      - "${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
 
 volumes:
   postgres_data:

@@ -11,9 +11,6 @@ type Repo struct {
 }
 
 func NewRepo(db *gorm.DB) (*Repo, error) {
-	if err := db.AutoMigrate(&Message{}, &MemorySummary{}); err != nil {
-		return nil, err
-	}
 	return &Repo{db: db}, nil
 }
 

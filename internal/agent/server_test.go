@@ -7,16 +7,15 @@ import (
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gorm.io/gorm"
 
 	"companion-ai/gen/agentv1"
 	"companion-ai/internal/chat"
 	"companion-ai/internal/memory"
 	"companion-ai/internal/summarize"
+	"companion-ai/internal/testdb"
 )
 
 type fakeModel struct{ reply string }
@@ -27,12 +26,7 @@ func (f *fakeModel) Generate(_ context.Context, _ []*schema.Message, _ ...model.
 
 func newTestServer(t *testing.T, reply string) (*Server, *memory.Repo) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-
+	db := testdb.Open(t)
 	repo, err := memory.NewRepo(db)
 	require.NoError(t, err)
 	fm := &fakeModel{reply: reply}
@@ -141,8 +135,8 @@ func TestRunDailyMaintenanceUsesTargetDate(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, nextDay, 1)
 
-	sums, err := repo.RecentSummaries("u1")
-	require.NoError(t, err)
+	var sums []memory.MemorySummary
+	require.NoError(t, repo.DB().Where("open_id = ? AND summary_date >= ? AND summary_date < ?", "u1", target, target.AddDate(0, 0, 1)).Find(&sums).Error)
 	require.Len(t, sums, 1)
 	require.Equal(t, "今天的摘要内容", sums[0].Content)
 }

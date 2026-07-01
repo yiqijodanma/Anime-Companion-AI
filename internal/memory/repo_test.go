@@ -1,22 +1,22 @@
 package memory
 
 import (
+	"database/sql"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"companion-ai/internal/testdb"
 )
 
 func newTestRepo(t *testing.T) *Repo {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-
+	db := testdb.Open(t)
 	repo, err := NewRepo(db)
 	require.NoError(t, err)
 	return repo
@@ -104,4 +104,33 @@ func TestPurgeSummariesOlderThan(t *testing.T) {
 	var count int64
 	require.NoError(t, repo.DB().Model(&MemorySummary{}).Count(&count).Error)
 	require.Equal(t, int64(1), count)
+}
+
+func TestNewRepoDoesNotCreateTables(t *testing.T) {
+	dsn := os.Getenv("PG_DSN")
+	if dsn == "" {
+		t.Skip("PG_DSN is required for PostgreSQL-backed tests")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+
+	schema := fmt.Sprintf("repo_nomigrate_%d", time.Now().UnixNano())
+	require.NoError(t, db.Exec("CREATE SCHEMA "+schema).Error)
+	t.Cleanup(func() {
+		_ = db.Exec("DROP SCHEMA " + schema + " CASCADE").Error
+	})
+	require.NoError(t, db.Exec("SET search_path TO "+schema).Error)
+
+	_, err = NewRepo(db)
+	require.NoError(t, err)
+
+	var table sql.NullString
+	require.NoError(t, db.Raw("SELECT to_regclass('messages')::text").Scan(&table).Error)
+	require.False(t, table.Valid, "NewRepo must not create database tables; run SQL migrations instead")
 }

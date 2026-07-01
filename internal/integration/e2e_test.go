@@ -7,12 +7,10 @@ import (
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"gorm.io/gorm"
 
 	"companion-ai/gen/agentv1"
 	"companion-ai/internal/agent"
@@ -20,6 +18,7 @@ import (
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/memory"
 	"companion-ai/internal/summarize"
+	"companion-ai/internal/testdb"
 )
 
 type fakeModel struct{}
@@ -29,12 +28,7 @@ func (fakeModel) Generate(_ context.Context, _ []*schema.Message, _ ...model.Opt
 }
 
 func TestEndToEndReplyThroughGRPC(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-
+	db := testdb.Open(t)
 	repo, err := memory.NewRepo(db)
 	require.NoError(t, err)
 	fm := fakeModel{}
