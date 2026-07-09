@@ -23,9 +23,12 @@ const (
 )
 
 type ReplyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OpenId        string                 `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
-	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
+	OpenId        string `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	Text          string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Channel       string `protobuf:"bytes,3,opt,name=channel,proto3" json:"channel,omitempty"`
+	ExternalId    string `protobuf:"bytes,4,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -70,6 +73,20 @@ func (x *ReplyRequest) GetOpenId() string {
 func (x *ReplyRequest) GetText() string {
 	if x != nil {
 		return x.Text
+	}
+	return ""
+}
+
+func (x *ReplyRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *ReplyRequest) GetExternalId() string {
+	if x != nil {
+		return x.ExternalId
 	}
 	return ""
 }
@@ -213,6 +230,7 @@ type ConversationMessage struct {
 	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
 	Content       string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	TurnId        string                 `protobuf:"bytes,5,opt,name=turn_id,json=turnId,proto3" json:"turn_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -275,9 +293,19 @@ func (x *ConversationMessage) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ConversationMessage) GetTurnId() string {
+	if x != nil {
+		return x.TurnId
+	}
+	return ""
+}
+
 type ListConversationMessagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OpenId        string                 `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
+	OpenId        string `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	Channel       string `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	ExternalId    string `protobuf:"bytes,3,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -315,6 +343,20 @@ func (*ListConversationMessagesRequest) Descriptor() ([]byte, []int) {
 func (x *ListConversationMessagesRequest) GetOpenId() string {
 	if x != nil {
 		return x.OpenId
+	}
+	return ""
+}
+
+func (x *ListConversationMessagesRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *ListConversationMessagesRequest) GetExternalId() string {
+	if x != nil {
+		return x.ExternalId
 	}
 	return ""
 }
@@ -364,8 +406,11 @@ func (x *ListConversationMessagesResponse) GetMessages() []*ConversationMessage 
 }
 
 type DeleteConversationMessagesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OpenId        string                 `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
+	OpenId        string `protobuf:"bytes,1,opt,name=open_id,json=openId,proto3" json:"open_id,omitempty"`
+	Channel       string `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	ExternalId    string `protobuf:"bytes,3,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -403,6 +448,20 @@ func (*DeleteConversationMessagesRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteConversationMessagesRequest) GetOpenId() string {
 	if x != nil {
 		return x.OpenId
+	}
+	return ""
+}
+
+func (x *DeleteConversationMessagesRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *DeleteConversationMessagesRequest) GetExternalId() string {
+	if x != nil {
+		return x.ExternalId
 	}
 	return ""
 }
@@ -447,10 +506,13 @@ var File_api_proto_agent_proto protoreflect.FileDescriptor
 
 const file_api_proto_agent_proto_rawDesc = "" +
 	"\n" +
-	"\x15api/proto/agent.proto\x12\bagent.v1\x1a\x1fgoogle/protobuf/timestamp.proto\";\n" +
+	"\x15api/proto/agent.proto\x12\bagent.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"v\n" +
 	"\fReplyRequest\x12\x17\n" +
 	"\aopen_id\x18\x01 \x01(\tR\x06openId\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text\".\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x18\n" +
+	"\achannel\x18\x03 \x01(\tR\achannel\x12\x1f\n" +
+	"\vexternal_id\x18\x04 \x01(\tR\n" +
+	"externalId\".\n" +
 	"\rReplyResponse\x12\x1d\n" +
 	"\n" +
 	"reply_text\x18\x01 \x01(\tR\treplyText\"5\n" +
@@ -458,19 +520,26 @@ const file_api_proto_agent_proto_rawDesc = "" +
 	"\vtarget_date\x18\x01 \x01(\tR\n" +
 	"targetDate\"9\n" +
 	"\x11MaintenanceResult\x12$\n" +
-	"\x0egreet_open_ids\x18\x01 \x03(\tR\fgreetOpenIds\"\x8e\x01\n" +
+	"\x0egreet_open_ids\x18\x01 \x03(\tR\fgreetOpenIds\"\xa7\x01\n" +
 	"\x13ConversationMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x129\n" +
 	"\n" +
-	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\":\n" +
+	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x17\n" +
+	"\aturn_id\x18\x05 \x01(\tR\x06turnId\"u\n" +
 	"\x1fListConversationMessagesRequest\x12\x17\n" +
-	"\aopen_id\x18\x01 \x01(\tR\x06openId\"]\n" +
+	"\aopen_id\x18\x01 \x01(\tR\x06openId\x12\x18\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12\x1f\n" +
+	"\vexternal_id\x18\x03 \x01(\tR\n" +
+	"externalId\"]\n" +
 	" ListConversationMessagesResponse\x129\n" +
-	"\bmessages\x18\x01 \x03(\v2\x1d.agent.v1.ConversationMessageR\bmessages\"<\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1d.agent.v1.ConversationMessageR\bmessages\"w\n" +
 	"!DeleteConversationMessagesRequest\x12\x17\n" +
-	"\aopen_id\x18\x01 \x01(\tR\x06openId\"$\n" +
+	"\aopen_id\x18\x01 \x01(\tR\x06openId\x12\x18\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12\x1f\n" +
+	"\vexternal_id\x18\x03 \x01(\tR\n" +
+	"externalId\"$\n" +
 	"\"DeleteConversationMessagesResponse2\x86\x03\n" +
 	"\fAgentService\x128\n" +
 	"\x05Reply\x12\x16.agent.v1.ReplyRequest\x1a\x17.agent.v1.ReplyResponse\x12P\n" +

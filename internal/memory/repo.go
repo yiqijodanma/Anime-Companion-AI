@@ -4,10 +4,18 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Repo struct {
 	db *gorm.DB
+}
+
+type ArchiveTurn struct {
+	TurnID    string
+	Role      string
+	Content   string
+	CreatedAt time.Time
 }
 
 func NewRepo(db *gorm.DB) (*Repo, error) {
@@ -29,12 +37,24 @@ func dayRange(day time.Time) (time.Time, time.Time) {
 	return start, start.AddDate(0, 0, 1)
 }
 
+var beijingLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+func beijingDate(day time.Time) time.Time {
+	inBeijing := day.In(beijingLocation)
+	return time.Date(inBeijing.Year(), inBeijing.Month(), inBeijing.Day(), 0, 0, 0, 0, beijingLocation)
+}
+
 func (r *Repo) SaveMessage(openID, role, content string) error {
+	now := time.Now()
 	return r.db.Create(&Message{
-		OpenID:    openID,
-		Role:      role,
-		Content:   content,
-		CreatedAt: time.Now(),
+		OpenID:      openID,
+		Channel:     "wechat",
+		ExternalID:  openID,
+		Role:        role,
+		Content:     content,
+		MessageDate: beijingDate(now),
+		ArchivedAt:  now,
+		CreatedAt:   now,
 	}).Error
 }
 
@@ -59,12 +79,77 @@ func (r *Repo) RecentSummaries(openID string) ([]MemorySummary, error) {
 }
 
 func (r *Repo) SaveSummary(openID string, date time.Time, content string) error {
+	now := time.Now()
 	return r.db.Create(&MemorySummary{
 		OpenID:      openID,
+		Channel:     "wechat",
+		ExternalID:  openID,
 		SummaryDate: date,
+		MessageDate: beijingDate(date),
 		Content:     content,
-		CreatedAt:   time.Now(),
+		ArchivedAt:  now,
+		CreatedAt:   now,
 	}).Error
+}
+
+func (r *Repo) RecentSummariesForIdentity(channel, externalID string) ([]MemorySummary, error) {
+	cutoff := beijingDate(time.Now()).AddDate(0, 0, -7)
+	var sums []MemorySummary
+	err := r.db.Where("channel = ? AND external_id = ? AND message_date >= ?", channel, externalID, cutoff).
+		Order("message_date asc").Find(&sums).Error
+	return sums, err
+}
+
+func (r *Repo) ArchiveDailyConversation(channel, externalID string, date time.Time, turns []ArchiveTurn, summary string) error {
+	messageDate := beijingDate(date)
+	now := time.Now()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, turn := range turns {
+			createdAt := turn.CreatedAt
+			if createdAt.IsZero() {
+				createdAt = now
+			}
+			msg := Message{
+				OpenID:      externalID,
+				Channel:     channel,
+				ExternalID:  externalID,
+				TurnID:      turn.TurnID,
+				Role:        turn.Role,
+				Content:     turn.Content,
+				MessageDate: messageDate,
+				ArchivedAt:  now,
+				CreatedAt:   createdAt,
+			}
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "message_date"}, {Name: "turn_id"}},
+				DoNothing: true,
+			}).Create(&msg).Error; err != nil {
+				return err
+			}
+		}
+		if summary == "" {
+			return nil
+		}
+		sum := MemorySummary{
+			OpenID:      externalID,
+			Channel:     channel,
+			ExternalID:  externalID,
+			SummaryDate: messageDate,
+			MessageDate: messageDate,
+			Content:     summary,
+			ArchivedAt:  now,
+			CreatedAt:   now,
+		}
+		return tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "message_date"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"open_id":      externalID,
+				"summary_date": messageDate,
+				"content":      summary,
+				"archived_at":  now,
+			}),
+		}).Create(&sum).Error
+	})
 }
 
 func (r *Repo) ActiveOpenIDsForDate(day time.Time) ([]string, error) {

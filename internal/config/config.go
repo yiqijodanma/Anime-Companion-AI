@@ -19,6 +19,7 @@ type AgentConfig struct {
 	DeepSeekModel  string
 	PgDSN          string
 	AgentGRPCAddr  string
+	RedisAddr      string
 }
 
 func env(key, def string) string {
@@ -55,6 +56,7 @@ func LoadAgent() (*AgentConfig, error) {
 		DeepSeekModel:  env("DEEPSEEK_MODEL", "deepseek-v4-flash"),
 		PgDSN:          os.Getenv("PG_DSN"),
 		AgentGRPCAddr:  env("AGENT_GRPC_ADDR", "127.0.0.1:9090"),
+		RedisAddr:      env("REDIS_ADDR", "127.0.0.1:6379"),
 	}
 	if cfg.DeepSeekAPIKey == "" {
 		return nil, fmt.Errorf("DEEPSEEK_API_KEY is required")

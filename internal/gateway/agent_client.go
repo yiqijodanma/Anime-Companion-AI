@@ -11,15 +11,16 @@ import (
 )
 
 type AgentCaller interface {
-	Reply(ctx context.Context, openID, text string) (string, error)
-	ListMessages(ctx context.Context, openID string) ([]ConversationMessage, error)
-	DeleteMessages(ctx context.Context, openID string) error
+	Reply(ctx context.Context, channel, externalID, text string) (string, error)
+	ListMessages(ctx context.Context, channel, externalID string) ([]ConversationMessage, error)
+	DeleteMessages(ctx context.Context, channel, externalID string) error
 	RunDailyMaintenance(ctx context.Context, targetDate string) ([]string, error)
 	Check(ctx context.Context) error
 }
 
 type ConversationMessage struct {
 	ID        uint64 `json:"id"`
+	TurnID    string `json:"turn_id,omitempty"`
 	Role      string `json:"role"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"created_at"`
@@ -37,16 +38,16 @@ func NewAgentClient(conn *grpc.ClientConn) *AgentClient {
 	}
 }
 
-func (a *AgentClient) Reply(ctx context.Context, openID, text string) (string, error) {
-	resp, err := a.c.Reply(ctx, &agentv1.ReplyRequest{OpenId: openID, Text: text})
+func (a *AgentClient) Reply(ctx context.Context, channel, externalID, text string) (string, error) {
+	resp, err := a.c.Reply(ctx, &agentv1.ReplyRequest{Channel: channel, ExternalId: externalID, Text: text})
 	if err != nil {
 		return "", err
 	}
 	return resp.ReplyText, nil
 }
 
-func (a *AgentClient) ListMessages(ctx context.Context, openID string) ([]ConversationMessage, error) {
-	resp, err := a.c.ListConversationMessages(ctx, &agentv1.ListConversationMessagesRequest{OpenId: openID})
+func (a *AgentClient) ListMessages(ctx context.Context, channel, externalID string) ([]ConversationMessage, error) {
+	resp, err := a.c.ListConversationMessages(ctx, &agentv1.ListConversationMessagesRequest{Channel: channel, ExternalId: externalID})
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +59,7 @@ func (a *AgentClient) ListMessages(ctx context.Context, openID string) ([]Conver
 		}
 		messages = append(messages, ConversationMessage{
 			ID:        msg.GetId(),
+			TurnID:    msg.GetTurnId(),
 			Role:      msg.GetRole(),
 			Content:   msg.GetContent(),
 			CreatedAt: createdAt,
@@ -66,8 +68,8 @@ func (a *AgentClient) ListMessages(ctx context.Context, openID string) ([]Conver
 	return messages, nil
 }
 
-func (a *AgentClient) DeleteMessages(ctx context.Context, openID string) error {
-	_, err := a.c.DeleteConversationMessages(ctx, &agentv1.DeleteConversationMessagesRequest{OpenId: openID})
+func (a *AgentClient) DeleteMessages(ctx context.Context, channel, externalID string) error {
+	_, err := a.c.DeleteConversationMessages(ctx, &agentv1.DeleteConversationMessagesRequest{Channel: channel, ExternalId: externalID})
 	return err
 }
 

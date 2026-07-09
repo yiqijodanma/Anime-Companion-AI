@@ -69,6 +69,8 @@ func TestWechatPostAcksAndPushes(t *testing.T) {
 	require.Equal(t, "success", w.Body.String())
 	h.WaitAsync()
 	require.Equal(t, 1, agent.Calls())
+	require.Equal(t, "wechat", agent.lastChannel)
+	require.Equal(t, "u1", agent.lastID)
 	require.Equal(t, "TOK:哼，收到！", push.sent["u1"])
 }
 

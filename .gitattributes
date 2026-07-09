@@ -1,0 +1,2 @@
+/.gitattributes text eol=lf
+gen/**/*.pb.go text eol=lf

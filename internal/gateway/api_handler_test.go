@@ -19,13 +19,15 @@ func TestAPIChat(t *testing.T) {
 	h := &Handlers{Agent: &fakeAgent{reply: "你好团员！"}, Log: slogDiscard()}
 	h.RegisterRoutes(r)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"open_id":"u1","text":"hi"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"channel":"api","external_id":"u1","text":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), "你好团员！")
+	require.Equal(t, "api", h.Agent.(*fakeAgent).lastChannel)
+	require.Equal(t, "u1", h.Agent.(*fakeAgent).lastID)
 }
 
 func TestAPIChatBadRequest(t *testing.T) {
@@ -50,7 +52,7 @@ func TestAPIChatRateLimitedReturns429(t *testing.T) {
 	h := &Handlers{Agent: agent, Log: slogDiscard(), Limiter: limiter}
 	h.RegisterRoutes(r)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"open_id":"u1","text":"hi"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"channel":"api","external_id":"u1","text":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -61,6 +63,20 @@ func TestAPIChatRateLimitedReturns429(t *testing.T) {
 	require.Equal(t, "u1", limiter.lastOpenID)
 }
 
+func TestAPIChatRejectsUnknownChannel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := &Handlers{Agent: &fakeAgent{reply: "unused"}, Log: slogDiscard()}
+	h.RegisterRoutes(r)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"channel":"web","external_id":"u1","text":"hi"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestAPIChatLimiterErrorFailOpen(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -69,7 +85,7 @@ func TestAPIChatLimiterErrorFailOpen(t *testing.T) {
 	h := &Handlers{Agent: agent, Log: slogDiscard(), Limiter: limiter}
 	h.RegisterRoutes(r)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"open_id":"u1","text":"hi"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/chat", strings.NewReader(`{"channel":"api","external_id":"u1","text":"hi"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -92,10 +108,11 @@ func TestAPIListConversationMessages(t *testing.T) {
 	h.RegisterRoutes(r)
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/conversations/u1/messages", nil))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/conversations/api/u1/messages", nil))
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Equal(t, "u1", agent.lastListID)
+	require.Equal(t, "api", agent.lastChannel)
+	require.Equal(t, "u1", agent.lastID)
 	require.JSONEq(t, `{"messages":[{"id":12,"role":"user","content":"你好","created_at":"2026-06-29T12:00:00Z"}]}`, w.Body.String())
 }
 
@@ -106,7 +123,7 @@ func TestAPIListConversationMessagesReturnsEmptyArray(t *testing.T) {
 	h.RegisterRoutes(r)
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/conversations/u1/messages", nil))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/conversations/api/u1/messages", nil))
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.JSONEq(t, `{"messages":[]}`, w.Body.String())
@@ -121,12 +138,13 @@ func TestAPIDeleteConversationMessages(t *testing.T) {
 
 	for range 2 {
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/conversations/u1/messages", nil))
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/conversations/api/u1/messages", nil))
 
 		require.Equal(t, http.StatusNoContent, w.Code)
 		require.Empty(t, w.Body.String())
 	}
-	require.Equal(t, "u1", agent.lastDeleteID)
+	require.Equal(t, "api", agent.lastChannel)
+	require.Equal(t, "u1", agent.lastID)
 	require.Equal(t, 2, agent.deleteCalls)
 }
 
@@ -147,7 +165,7 @@ func TestAPIConversationMessagesAgentError(t *testing.T) {
 			h.RegisterRoutes(r)
 
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, httptest.NewRequest(tt.method, "/api/v1/conversations/u1/messages", nil))
+			r.ServeHTTP(w, httptest.NewRequest(tt.method, "/api/v1/conversations/api/u1/messages", nil))
 
 			require.Equal(t, http.StatusBadGateway, w.Code)
 		})
@@ -172,7 +190,7 @@ func TestAPIConversationMessagesInvalidArgument(t *testing.T) {
 			h.RegisterRoutes(r)
 
 			w := httptest.NewRecorder()
-			r.ServeHTTP(w, httptest.NewRequest(tt.method, "/api/v1/conversations/u1/messages", nil))
+			r.ServeHTTP(w, httptest.NewRequest(tt.method, "/api/v1/conversations/api/u1/messages", nil))
 
 			require.Equal(t, http.StatusBadRequest, w.Code)
 		})

@@ -101,7 +101,7 @@ func (h *Handlers) receive(c *gin.Context) {
 }
 
 func (h *Handlers) handleAsync(ctx context.Context, openID, text string) {
-	reply, err := h.Agent.Reply(ctx, openID, text)
+	reply, err := h.Agent.Reply(ctx, "wechat", openID, text)
 	if err != nil {
 		h.Log.Error("agent reply failed", "open_id", openID, "err", err)
 		reply = "哼，本小姐突然走神了，再说一遍！"
