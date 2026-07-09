@@ -7,6 +7,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 
+	"companion-ai/internal/conversation"
 	"companion-ai/internal/persona"
 	"companion-ai/internal/wechat"
 )
@@ -19,6 +20,11 @@ type TokenSource interface {
 	Get(ctx context.Context) (string, error)
 	Refresh(ctx context.Context) (string, error)
 }
+
+var (
+	maintenanceNow      = time.Now
+	maintenanceLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+)
 
 func pushTextWithTokenRefresh(ctx context.Context, tokens TokenSource, push Pusher, openID, text string) error {
 	token, err := tokens.Get(ctx)
@@ -50,12 +56,12 @@ func RunMaintenanceForDate(ctx context.Context, targetDate string, agent AgentCa
 }
 
 func RunMaintenance(ctx context.Context, agent AgentCaller, tokens TokenSource, push Pusher, log *slog.Logger) {
-	targetDate := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	targetDate := conversation.BeijingDate(maintenanceNow()).AddDate(0, 0, -1).Format("2006-01-02")
 	RunMaintenanceForDate(ctx, targetDate, agent, tokens, push, log)
 }
 
 func StartCron(agent AgentCaller, tokens TokenSource, push Pusher, log *slog.Logger) *cron.Cron {
-	c := cron.New()
+	c := cron.New(cron.WithLocation(maintenanceLocation))
 	_, _ = c.AddFunc("0 0 * * *", func() {
 		RunMaintenance(context.Background(), agent, tokens, push, log)
 	})

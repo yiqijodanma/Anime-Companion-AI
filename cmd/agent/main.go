@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
@@ -16,6 +17,7 @@ import (
 	"companion-ai/internal/agent"
 	"companion-ai/internal/chat"
 	"companion-ai/internal/config"
+	"companion-ai/internal/conversation"
 	"companion-ai/internal/logging"
 	"companion-ai/internal/memory"
 	"companion-ai/internal/summarize"
@@ -53,6 +55,15 @@ func main() {
 		panic(err)
 	}
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         cfg.RedisAddr,
+		DialTimeout:  500 * time.Millisecond,
+		ReadTimeout:  500 * time.Millisecond,
+		WriteTimeout: 500 * time.Millisecond,
+		MaxRetries:   -1,
+	})
+	defer redisClient.Close()
+
 	cm, err := openai.NewChatModel(context.Background(), &openai.ChatModelConfig{
 		APIKey:  cfg.DeepSeekAPIKey,
 		Model:   cfg.DeepSeekModel,
@@ -64,7 +75,8 @@ func main() {
 		panic(err)
 	}
 
-	srv := agent.NewServer(repo, chat.NewReplier(cm), summarize.NewSummarizer(cm)).WithLogger(log)
+	conversations := conversation.NewRedisStore(redisClient, "", 72*time.Hour)
+	srv := agent.NewServer(repo, conversations, chat.NewReplier(cm), summarize.NewSummarizer(cm)).WithLogger(log)
 	lis, err := net.Listen("tcp", cfg.AgentGRPCAddr)
 	if err != nil {
 		log.Error("listen failed", "err", err)

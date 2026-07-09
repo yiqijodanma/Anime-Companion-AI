@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,7 +32,7 @@ func Open(t testing.TB) *gorm.DB {
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
 	})
-	schema := fmt.Sprintf("test_%d", time.Now().UnixNano())
+	schema := uniqueSchemaName("test")
 	if err := db.Exec("CREATE SCHEMA " + schema).Error; err != nil {
 		t.Fatalf("create test schema: %v", err)
 	}
@@ -45,15 +47,31 @@ func Open(t testing.TB) *gorm.DB {
 	return db
 }
 
+var schemaCounter uint64
+
+func uniqueSchemaName(prefix string) string {
+	return fmt.Sprintf("%s_%d_%d_%d", prefix, os.Getpid(), time.Now().UnixNano(), atomic.AddUint64(&schemaCounter, 1))
+}
+
 func ApplyMigrations(t testing.TB, db *sql.DB) {
 	t.Helper()
 	root := repoRoot(t)
-	upSQL, err := os.ReadFile(filepath.Join(root, "db", "migrations", "000001_init.up.sql"))
+	paths, err := filepath.Glob(filepath.Join(root, "db", "migrations", "*.up.sql"))
 	if err != nil {
-		t.Fatalf("read migration: %v", err)
+		t.Fatalf("list migrations: %v", err)
 	}
-	if _, err := db.Exec(string(upSQL)); err != nil {
-		t.Fatalf("apply migration: %v", err)
+	if len(paths) == 0 {
+		t.Fatalf("no migrations found")
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		upSQL, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", filepath.Base(path), err)
+		}
+		if _, err := db.Exec(string(upSQL)); err != nil {
+			t.Fatalf("apply migration %s: %v", filepath.Base(path), err)
+		}
 	}
 }
 

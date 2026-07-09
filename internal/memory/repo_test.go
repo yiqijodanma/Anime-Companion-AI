@@ -94,6 +94,95 @@ func TestRecentSummariesWindow(t *testing.T) {
 	require.Equal(t, "昨天聊了社团", sums[0].Content)
 }
 
+func TestArchiveDailyConversationPersistsTurnsAndSummaryForIdentity(t *testing.T) {
+	repo := newTestRepo(t)
+	target := beijingDate(time.Now()).AddDate(0, 0, -1)
+	created := target.Add(12 * time.Hour)
+
+	err := repo.ArchiveDailyConversation("api", "test_u1", target, []ArchiveTurn{{
+		TurnID:    "turn-1",
+		Role:      RoleUser,
+		Content:   "你好",
+		CreatedAt: created,
+	}, {
+		TurnID:    "turn-2",
+		Role:      RoleAssistant,
+		Content:   "哼，是你啊",
+		CreatedAt: created.Add(time.Minute),
+	}}, "当天摘要")
+	require.NoError(t, err)
+
+	var msgs []Message
+	require.NoError(t, repo.DB().Where("channel = ? AND external_id = ? AND message_date = ?", "api", "test_u1", target.Format("2006-01-02")).
+		Order("created_at asc").Find(&msgs).Error)
+	require.Len(t, msgs, 2)
+	require.Equal(t, "test_u1", msgs[0].OpenID)
+	require.Equal(t, "turn-1", msgs[0].TurnID)
+	require.Equal(t, "你好", msgs[0].Content)
+	require.False(t, msgs[0].ArchivedAt.IsZero())
+
+	sums, err := repo.RecentSummariesForIdentity("api", "test_u1")
+	require.NoError(t, err)
+	require.Len(t, sums, 1)
+	require.Equal(t, "当天摘要", sums[0].Content)
+	require.Equal(t, "api", sums[0].Channel)
+	require.Equal(t, "test_u1", sums[0].ExternalID)
+}
+
+func TestArchiveDailyConversationAllowsLongExternalID(t *testing.T) {
+	repo := newTestRepo(t)
+	target := beijingDate(time.Now()).AddDate(0, 0, -1)
+	externalID := "api_user_" + "1234567890123456789012345678901234567890123456789012345678901234567890"
+
+	err := repo.ArchiveDailyConversation("api", externalID, target, []ArchiveTurn{{
+		TurnID:    "turn-long-id",
+		Role:      RoleUser,
+		Content:   "长 external id 用户消息",
+		CreatedAt: target.Add(12 * time.Hour),
+	}}, "长 external id 摘要")
+	require.NoError(t, err)
+
+	sums, err := repo.RecentSummariesForIdentity("api", externalID)
+	require.NoError(t, err)
+	require.Len(t, sums, 1)
+	require.Equal(t, externalID, sums[0].OpenID)
+}
+
+func TestArchiveDailyConversationIsIdempotentForSameTurnIDs(t *testing.T) {
+	repo := newTestRepo(t)
+	target := beijingDate(time.Now()).AddDate(0, 0, -1)
+	turns := []ArchiveTurn{{
+		TurnID:    "turn-1",
+		Role:      RoleUser,
+		Content:   "第一版",
+		CreatedAt: target.Add(12 * time.Hour),
+	}}
+
+	require.NoError(t, repo.ArchiveDailyConversation("wechat", "u1", target, turns, "摘要一"))
+	require.NoError(t, repo.ArchiveDailyConversation("wechat", "u1", target, turns, "摘要二"))
+
+	var count int64
+	require.NoError(t, repo.DB().Model(&Message{}).Where("channel = ? AND external_id = ?", "wechat", "u1").Count(&count).Error)
+	require.Equal(t, int64(1), count)
+
+	sums, err := repo.RecentSummariesForIdentity("wechat", "u1")
+	require.NoError(t, err)
+	require.Len(t, sums, 1)
+	require.Equal(t, "摘要二", sums[0].Content)
+}
+
+func TestRecentSummariesForIdentityDoesNotMixChannels(t *testing.T) {
+	repo := newTestRepo(t)
+	now := time.Now()
+	require.NoError(t, repo.ArchiveDailyConversation("wechat", "same", now.AddDate(0, 0, -1), nil, "微信摘要"))
+	require.NoError(t, repo.ArchiveDailyConversation("api", "same", now.AddDate(0, 0, -1), nil, "API摘要"))
+
+	sums, err := repo.RecentSummariesForIdentity("api", "same")
+	require.NoError(t, err)
+	require.Len(t, sums, 1)
+	require.Equal(t, "API摘要", sums[0].Content)
+}
+
 func TestPurgeSummariesOlderThan(t *testing.T) {
 	repo := newTestRepo(t)
 	now := time.Now()

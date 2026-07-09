@@ -10,24 +10,26 @@ import (
 )
 
 type fakeAgent struct {
-	mu           sync.Mutex
-	reply        string
-	replyCalls   int
-	maintenance  []string
-	healthErr    error
-	lastDate     string
-	messages     []ConversationMessage
-	listErr      error
-	deleteErr    error
-	lastListID   string
-	lastDeleteID string
-	deleteCalls  int
+	mu          sync.Mutex
+	reply       string
+	replyCalls  int
+	maintenance []string
+	healthErr   error
+	lastDate    string
+	messages    []ConversationMessage
+	listErr     error
+	deleteErr   error
+	lastChannel string
+	lastID      string
+	deleteCalls int
 }
 
-func (f *fakeAgent) Reply(context.Context, string, string) (string, error) {
+func (f *fakeAgent) Reply(_ context.Context, channel, externalID, text string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.replyCalls++
+	f.lastChannel = channel
+	f.lastID = externalID
 	return f.reply, nil
 }
 
@@ -38,20 +40,22 @@ func (f *fakeAgent) RunDailyMaintenance(_ context.Context, targetDate string) ([
 	return f.maintenance, nil
 }
 
-func (f *fakeAgent) ListMessages(_ context.Context, openID string) ([]ConversationMessage, error) {
+func (f *fakeAgent) ListMessages(_ context.Context, channel, externalID string) ([]ConversationMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.lastListID = openID
+	f.lastChannel = channel
+	f.lastID = externalID
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
 	return append([]ConversationMessage(nil), f.messages...), nil
 }
 
-func (f *fakeAgent) DeleteMessages(_ context.Context, openID string) error {
+func (f *fakeAgent) DeleteMessages(_ context.Context, channel, externalID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.lastDeleteID = openID
+	f.lastChannel = channel
+	f.lastID = externalID
 	f.deleteCalls++
 	return f.deleteErr
 }

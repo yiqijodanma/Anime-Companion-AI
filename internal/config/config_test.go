@@ -48,6 +48,7 @@ func TestLoadAgentReadsEnv(t *testing.T) {
 	t.Setenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
 	t.Setenv("PG_DSN", "postgres://localhost/db")
 	t.Setenv("AGENT_GRPC_ADDR", "127.0.0.1:9090")
+	t.Setenv("REDIS_ADDR", "redis:6380")
 
 	cfg, err := LoadAgent()
 	require.NoError(t, err)
@@ -55,6 +56,16 @@ func TestLoadAgentReadsEnv(t *testing.T) {
 	require.Equal(t, "deepseek-v4-flash", cfg.DeepSeekModel)
 	require.Equal(t, "postgres://localhost/db", cfg.PgDSN)
 	require.Equal(t, "127.0.0.1:9090", cfg.AgentGRPCAddr)
+	require.Equal(t, "redis:6380", cfg.RedisAddr)
+}
+
+func TestLoadAgentDefaultsRedisAddr(t *testing.T) {
+	t.Setenv("DEEPSEEK_API_KEY", "dskey")
+	t.Setenv("PG_DSN", "postgres://localhost/db")
+
+	cfg, err := LoadAgent()
+	require.NoError(t, err)
+	require.Equal(t, "127.0.0.1:6379", cfg.RedisAddr)
 }
 
 func TestLoadAgentMissingRequiredFails(t *testing.T) {

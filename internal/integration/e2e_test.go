@@ -4,9 +4,12 @@ import (
 	"context"
 	"net"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -15,6 +18,7 @@ import (
 	"companion-ai/gen/agentv1"
 	"companion-ai/internal/agent"
 	"companion-ai/internal/chat"
+	"companion-ai/internal/conversation"
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/memory"
 	"companion-ai/internal/summarize"
@@ -31,8 +35,12 @@ func TestEndToEndReplyThroughGRPC(t *testing.T) {
 	db := testdb.Open(t)
 	repo, err := memory.NewRepo(db)
 	require.NoError(t, err)
+	s := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: s.Addr()})
+	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
+	conv := conversation.NewRedisStore(redisClient, "test:", 72*time.Hour)
 	fm := fakeModel{}
-	srv := agent.NewServer(repo, chat.NewReplier(fm), summarize.NewSummarizer(fm))
+	srv := agent.NewServer(repo, conv, chat.NewReplier(fm), summarize.NewSummarizer(fm))
 
 	lis := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
@@ -51,28 +59,26 @@ func TestEndToEndReplyThroughGRPC(t *testing.T) {
 	defer conn.Close()
 
 	client := gateway.NewAgentClient(conn)
-	reply, err := client.Reply(context.Background(), "u1", "你好")
+	reply, err := client.Reply(context.Background(), "wechat", "u1", "你好")
 	require.NoError(t, err)
 	require.Equal(t, "哼，本团长在呢！", reply)
 
 	msgs, err := repo.TodayMessages("u1")
 	require.NoError(t, err)
-	require.Len(t, msgs, 2)
+	require.Empty(t, msgs)
 
-	clientMsgs, err := client.ListMessages(context.Background(), "u1")
+	clientMsgs, err := client.ListMessages(context.Background(), "wechat", "u1")
 	require.NoError(t, err)
 	require.Len(t, clientMsgs, 2)
-	require.Equal(t, uint64(msgs[0].ID), clientMsgs[0].ID)
 	require.Equal(t, memory.RoleUser, clientMsgs[0].Role)
 	require.Equal(t, "你好", clientMsgs[0].Content)
 	require.NotEmpty(t, clientMsgs[0].CreatedAt)
-	require.Equal(t, uint64(msgs[1].ID), clientMsgs[1].ID)
 	require.Equal(t, memory.RoleAssistant, clientMsgs[1].Role)
 	require.Equal(t, "哼，本团长在呢！", clientMsgs[1].Content)
 	require.NotEmpty(t, clientMsgs[1].CreatedAt)
 
-	require.NoError(t, client.DeleteMessages(context.Background(), "u1"))
-	msgs, err = repo.TodayMessages("u1")
+	require.NoError(t, client.DeleteMessages(context.Background(), "wechat", "u1"))
+	turns, err := conv.RecentTurns(context.Background(), conversation.Identity{Channel: "wechat", ExternalID: "u1"}, 0)
 	require.NoError(t, err)
-	require.Empty(t, msgs)
+	require.Empty(t, turns)
 }

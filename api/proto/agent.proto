@@ -14,8 +14,11 @@ service AgentService {
 }
 
 message ReplyRequest {
+  // Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
   string open_id = 1;
   string text = 2;
+  string channel = 3;
+  string external_id = 4;
 }
 
 message ReplyResponse {
@@ -36,10 +39,14 @@ message ConversationMessage {
   string role = 2;
   string content = 3;
   google.protobuf.Timestamp created_at = 4;
+  string turn_id = 5;
 }
 
 message ListConversationMessagesRequest {
+  // Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
   string open_id = 1;
+  string channel = 2;
+  string external_id = 3;
 }
 
 message ListConversationMessagesResponse {
@@ -47,7 +54,10 @@ message ListConversationMessagesResponse {
 }
 
 message DeleteConversationMessagesRequest {
+  // Deprecated legacy identity. If channel/external_id are empty, the server treats open_id as wechat external_id.
   string open_id = 1;
+  string channel = 2;
+  string external_id = 3;
 }
 
 message DeleteConversationMessagesResponse {}

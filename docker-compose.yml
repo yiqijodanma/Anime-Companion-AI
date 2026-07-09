@@ -49,11 +49,14 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       PG_DSN: postgres://${POSTGRES_USER:-companion}:${POSTGRES_PASSWORD:-companion}@postgres:5432/${POSTGRES_DB:-companion}?sslmode=disable
       AGENT_GRPC_ADDR: :${AGENT_GRPC_PORT:-9090}
+      REDIS_ADDR: redis:6379
     ports:
       - "${AGENT_GRPC_PORT:-9090}:${AGENT_GRPC_PORT:-9090}"
 
