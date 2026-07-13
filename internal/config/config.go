@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type GatewayConfig struct {
@@ -12,6 +13,14 @@ type GatewayConfig struct {
 	AgentGRPCAddr   string
 	GatewayHTTPAddr string
 	RedisAddr       string
+	PgDSN           string
+	AuthPepper      string
+	SMTPHost        string
+	SMTPPort        string
+	SMTPUsername    string
+	SMTPPassword    string
+	SMTPFrom        string
+	CookieSecure    bool
 }
 
 type AgentConfig struct {
@@ -37,6 +46,14 @@ func LoadGateway() (*GatewayConfig, error) {
 		AgentGRPCAddr:   env("AGENT_GRPC_ADDR", "127.0.0.1:9090"),
 		GatewayHTTPAddr: env("GATEWAY_HTTP_ADDR", ":80"),
 		RedisAddr:       env("REDIS_ADDR", "127.0.0.1:6379"),
+		PgDSN:           os.Getenv("PG_DSN"),
+		AuthPepper:      os.Getenv("AUTH_PEPPER"),
+		SMTPHost:        env("SMTP_HOST", "127.0.0.1"),
+		SMTPPort:        env("SMTP_PORT", "1025"),
+		SMTPUsername:    os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:    os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:        env("SMTP_FROM", "SOS Brigade <noreply@sos.local>"),
+		CookieSecure:    envBool("COOKIE_SECURE", false),
 	}
 	if cfg.WechatToken == "" {
 		return nil, fmt.Errorf("WECHAT_TOKEN is required")
@@ -47,7 +64,25 @@ func LoadGateway() (*GatewayConfig, error) {
 	if cfg.WechatAppSecret == "" {
 		return nil, fmt.Errorf("WECHAT_APPSECRET is required")
 	}
+	if cfg.PgDSN == "" {
+		return nil, fmt.Errorf("PG_DSN is required")
+	}
+	if cfg.AuthPepper == "" {
+		return nil, fmt.Errorf("AUTH_PEPPER is required")
+	}
 	return cfg, nil
+}
+
+func envBool(key string, def bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return def
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return def
+	}
+	return parsed
 }
 
 func LoadAgent() (*AgentConfig, error) {

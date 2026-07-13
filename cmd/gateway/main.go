@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -8,7 +9,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 
+	authn "companion-ai/internal/auth"
 	"companion-ai/internal/config"
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/logging"
@@ -42,6 +46,22 @@ func main() {
 		MaxRetries:   -1,
 	})
 	defer redisClient.Close()
+	db, err := gorm.Open(postgres.Open(cfg.PgDSN), &gorm.Config{TranslateError: true})
+	if err != nil {
+		log.Error("postgres client failed", "err", err)
+		panic(err)
+	}
+	authService, err := authn.NewService(db, redisClient, authn.SMTPMailer{
+		Addr:     fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
+		Host:     cfg.SMTPHost,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     cfg.SMTPFrom,
+	}, authn.Config{Pepper: cfg.AuthPepper})
+	if err != nil {
+		log.Error("auth service failed", "err", err)
+		panic(err)
+	}
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	tokens := wechat.NewTokenManager(cfg.WechatAppID, cfg.WechatAppSecret, httpClient).
@@ -62,6 +82,8 @@ func main() {
 			30,
 			time.Minute,
 		),
+		Auth:         authService,
+		CookieSecure: cfg.CookieSecure,
 	}
 
 	cronInst := gateway.StartCron(agentClient, tokens, pusher, log)

@@ -18,10 +18,65 @@ type chatReq struct {
 
 func (h *Handlers) registerAPI(r *gin.Engine) {
 	v1 := r.Group("/api/v1")
-	v1.POST("/chat", h.apiChat)
-	v1.GET("/conversations/:channel/:external_id/messages", h.apiListMessages)
-	v1.DELETE("/conversations/:channel/:external_id/messages", h.apiDeleteMessages)
+	if h.Auth == nil {
+		// Legacy mode is retained for isolated handler tests and non-web deployments.
+		v1.POST("/chat", h.apiChat)
+		v1.GET("/conversations/:channel/:external_id/messages", h.apiListMessages)
+		v1.DELETE("/conversations/:channel/:external_id/messages", h.apiDeleteMessages)
+	} else {
+		h.registerAuth(v1.Group("/auth"))
+		web := v1.Group("")
+		web.Use(h.requireUser())
+		web.GET("/conversations/messages", h.webListMessages)
+		web.POST("/conversations/messages", h.webSendMessage)
+		web.DELETE("/conversations/messages", h.webDeleteMessages)
+	}
 	r.GET("/healthz", h.healthz)
+}
+
+type webMessageReq struct {
+	Content string `json:"content"`
+}
+
+func (h *Handlers) webListMessages(c *gin.Context) {
+	user := currentUser(c)
+	messages, err := h.Agent.ListMessages(c.Request.Context(), "api", user.ID)
+	if err != nil {
+		apiAgentError(c, err)
+		return
+	}
+	if messages == nil {
+		messages = []ConversationMessage{}
+	}
+	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+func (h *Handlers) webSendMessage(c *gin.Context) {
+	var req webMessageReq
+	if c.ShouldBindJSON(&req) != nil || req.Content == "" {
+		apiError(c, http.StatusBadRequest, "invalid_request", "content 必填")
+		return
+	}
+	user := currentUser(c)
+	if !h.allowOpenID(c.Request.Context(), user.ID, "web_chat") {
+		apiError(c, http.StatusTooManyRequests, "rate_limited", "too many requests")
+		return
+	}
+	reply, err := h.Agent.Reply(c.Request.Context(), "api", user.ID, req.Content)
+	if err != nil {
+		apiAgentError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"reply": reply})
+}
+
+func (h *Handlers) webDeleteMessages(c *gin.Context) {
+	user := currentUser(c)
+	if err := h.Agent.DeleteMessages(c.Request.Context(), "api", user.ID); err != nil {
+		apiAgentError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func apiError(c *gin.Context, status int, code, msg string) {

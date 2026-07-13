@@ -13,6 +13,11 @@ func TestLoadGatewayReadsEnv(t *testing.T) {
 	t.Setenv("AGENT_GRPC_ADDR", "127.0.0.1:9090")
 	t.Setenv("GATEWAY_HTTP_ADDR", ":8080")
 	t.Setenv("REDIS_ADDR", "redis:6380")
+	t.Setenv("PG_DSN", "postgres://localhost/companion")
+	t.Setenv("AUTH_PEPPER", "test-pepper")
+	t.Setenv("SMTP_HOST", "mailpit")
+	t.Setenv("SMTP_PORT", "1025")
+	t.Setenv("COOKIE_SECURE", "true")
 
 	cfg, err := LoadGateway()
 	require.NoError(t, err)
@@ -22,12 +27,19 @@ func TestLoadGatewayReadsEnv(t *testing.T) {
 	require.Equal(t, "127.0.0.1:9090", cfg.AgentGRPCAddr)
 	require.Equal(t, ":8080", cfg.GatewayHTTPAddr)
 	require.Equal(t, "redis:6380", cfg.RedisAddr)
+	require.Equal(t, "postgres://localhost/companion", cfg.PgDSN)
+	require.Equal(t, "test-pepper", cfg.AuthPepper)
+	require.Equal(t, "mailpit", cfg.SMTPHost)
+	require.Equal(t, "1025", cfg.SMTPPort)
+	require.True(t, cfg.CookieSecure)
 }
 
 func TestLoadGatewayDefaultsRedisAddr(t *testing.T) {
 	t.Setenv("WECHAT_TOKEN", "tok")
 	t.Setenv("WECHAT_APPID", "appid")
 	t.Setenv("WECHAT_APPSECRET", "secret")
+	t.Setenv("PG_DSN", "postgres://localhost/companion")
+	t.Setenv("AUTH_PEPPER", "test-pepper")
 
 	cfg, err := LoadGateway()
 	require.NoError(t, err)

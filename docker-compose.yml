@@ -27,6 +27,12 @@ services:
       timeout: 5s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
   migrate:
     image: migrate/migrate:4
     depends_on:
@@ -69,15 +75,25 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
     environment:
       WECHAT_TOKEN: ${WECHAT_TOKEN}
       WECHAT_APPID: ${WECHAT_APPID}
       WECHAT_APPSECRET: ${WECHAT_APPSECRET}
       AGENT_GRPC_ADDR: agent:${AGENT_GRPC_PORT:-9090}
-      GATEWAY_HTTP_ADDR: :${GATEWAY_HTTP_PORT:-8080}
+      GATEWAY_HTTP_ADDR: :${GATEWAY_HTTP_PORT:-18080}
       REDIS_ADDR: redis:6379
+      PG_DSN: postgres://${POSTGRES_USER:-companion}:${POSTGRES_PASSWORD:-companion}@postgres:5432/${POSTGRES_DB:-companion}?sslmode=disable
+      AUTH_PEPPER: ${AUTH_PEPPER:-local-development-pepper-change-in-production}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: ${SMTP_FROM:-noreply@sos.local}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
-      - "${GATEWAY_HTTP_PORT:-8080}:${GATEWAY_HTTP_PORT:-8080}"
+      - "${GATEWAY_HTTP_PORT:-18080}:${GATEWAY_HTTP_PORT:-18080}"
 
 volumes:
   postgres_data:

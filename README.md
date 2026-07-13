@@ -19,6 +19,8 @@ make test
 
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
+- Mailpit SMTP: `localhost:1025`
+- Mailpit 收件箱: `http://localhost:8025`
 
 `make test` 复用 dev PostgreSQL，测试会创建临时 schema 并执行 migration，不依赖 SQLite 或 GORM `AutoMigrate`。
 
@@ -28,7 +30,7 @@ make test
 make docker
 ```
 
-`make docker` 使用 pro 端口配置构建并运行 Agent、Gateway、PostgreSQL、Redis 和 migration。
+`make docker` 使用 pro 端口配置构建并运行 Agent、Gateway、PostgreSQL、Redis、Mailpit 和 migration。
 
 Redis 已用于 Gateway 侧 MsgId 去重、access_token 缓存和按 open_id 固定窗口限流，默认限流值为 `30 次/分钟/open_id`。
 
@@ -44,7 +46,8 @@ $env:GATEWAY_HTTP_ADDR=":8080"
 
 - dev：`DEV_POSTGRES_PORT`、`DEV_REDIS_PORT`、`DEV_GATEWAY_HTTP_PORT`、`DEV_AGENT_GRPC_PORT`
 - pro：`PRO_POSTGRES_PORT`、`PRO_REDIS_PORT`、`PRO_GATEWAY_HTTP_PORT`、`PRO_AGENT_GRPC_PORT`
-- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`
+- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AUTH_PEPPER`、`COOKIE_SECURE`
+- 邮件：`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`
 - Agent：`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`
 - PostgreSQL：`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
 
@@ -59,11 +62,10 @@ make db
 make dev
 ```
 
-`make dev` 会构建二进制并打印两个启动命令。按提示分别在两个终端启动：
+`make dev` 会启动 PostgreSQL、Redis、Mailpit，执行 migration，构建二进制，并在当前终端并行运行 Agent 与 Gateway。Gateway 默认监听 `8080`：
 
 ```powershell
-make run-agent-dev
-make run-gateway-dev
+make dev
 ```
 
 模拟生产配置但不使用项目镜像：
@@ -90,17 +92,19 @@ make docker
 curl.exe http://localhost:8080/healthz
 ```
 
-REST 对话成功路径需要真实 DeepSeek key 和可访问外网：
+Web REST 接口必须先完成邮箱注册并取得 `HttpOnly` 会话 Cookie；前端不会再提交或保存匿名 `external_id`。本地 Mailpit 收件箱位于 `http://localhost:8025`，生产环境必须替换 `AUTH_PEPPER` 并将 `COOKIE_SECURE=true`。
+
+认证后的对话接口需要真实 DeepSeek key 和可访问外网：
 
 ```powershell
-curl.exe -X POST http://localhost:8080/api/v1/chat -H "Content-Type: application/json" -d '{"open_id":"u1","text":"你好"}'
+curl.exe -b cookies.txt -X POST http://localhost:8080/api/v1/conversations/messages -H "Content-Type: application/json" -d '{"content":"你好"}'
 ```
 
 当天记忆管理接口：
 
 ```powershell
-curl.exe http://localhost:8080/api/v1/conversations/u1/messages
-curl.exe -X DELETE http://localhost:8080/api/v1/conversations/u1/messages
+curl.exe -b cookies.txt http://localhost:8080/api/v1/conversations/messages
+curl.exe -b cookies.txt -X DELETE http://localhost:8080/api/v1/conversations/messages
 ```
 
 ## 微信测试号配置

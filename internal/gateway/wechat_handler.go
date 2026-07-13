@@ -10,17 +10,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	authn "companion-ai/internal/auth"
 	"companion-ai/internal/wechat"
 )
 
 type Handlers struct {
-	Token   string
-	Agent   AgentCaller
-	Tokens  TokenSource
-	Pusher  Pusher
-	Log     *slog.Logger
-	Dedupe  MessageDeduper
-	Limiter RateLimiter
+	Token        string
+	Agent        AgentCaller
+	Tokens       TokenSource
+	Pusher       Pusher
+	Log          *slog.Logger
+	Dedupe       MessageDeduper
+	Limiter      RateLimiter
+	Auth         *authn.Service
+	CookieSecure bool
 
 	nowSync *sync.WaitGroup
 }

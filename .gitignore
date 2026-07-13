@@ -41,3 +41,5 @@ UNFINISHED.md
 /docs
 
 /.codegraph
+
+*.log
