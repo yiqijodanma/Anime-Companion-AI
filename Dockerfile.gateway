@@ -6,11 +6,13 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/gateway ./cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/seed-admin ./cmd/seed-admin
 
 FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /out/gateway /app/gateway
+COPY --from=builder /out/seed-admin /app/seed-admin
 
 ENTRYPOINT ["/app/gateway"]

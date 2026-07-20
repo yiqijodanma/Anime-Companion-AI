@@ -48,6 +48,20 @@ services:
       ]
     restart: "no"
 
+  seed-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PG_DSN: postgres://${POSTGRES_USER:-companion}:${POSTGRES_PASSWORD:-companion}@postgres:5432/${POSTGRES_DB:-companion}?sslmode=disable
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-yiqijodanma@gmail.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin@1234}
+    entrypoint: ["/app/seed-admin"]
+    restart: "no"
+
   agent:
     build:
       context: .
@@ -76,6 +90,8 @@ services:
       redis:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      seed-admin:
         condition: service_completed_successfully
       mailpit:
         condition: service_started

@@ -40,6 +40,7 @@ type User struct {
 	ID           string    `gorm:"primaryKey;size:32" json:"id"`
 	Email        string    `gorm:"uniqueIndex;size:320" json:"email"`
 	PasswordHash string    `json:"-"`
+	IsAdmin      bool      `gorm:"not null;default:false" json:"is_admin"`
 	VerifiedAt   time.Time `json:"verified_at"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

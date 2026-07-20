@@ -22,6 +22,7 @@ func TestOpenAppliesAllMigrationsInOrder(t *testing.T) {
 	require.True(t, db.Migrator().HasColumn("memory_summaries", "external_id"))
 	require.True(t, db.Migrator().HasColumn("memory_summaries", "message_date"))
 	require.True(t, db.Migrator().HasColumn("memory_summaries", "archived_at"))
+	require.True(t, db.Migrator().HasColumn("users", "is_admin"))
 }
 
 func TestConversationArchiveMigrationDedupesExistingSummaries(t *testing.T) {

@@ -2,14 +2,21 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"time"
+)
+
+var (
+	ErrConversationBusy = errors.New("conversation busy")
+	ErrLeaseLost        = errors.New("conversation generation lease lost")
 )
 
 const (
 	RoleUser      = "user"
 	RoleAssistant = "assistant"
 
-	MaxExternalIDLength = 128
+	MaxExternalIDLength   = 128
+	DefaultConversationID = "direct-haruhi"
 )
 
 type Identity struct {
@@ -18,11 +25,53 @@ type Identity struct {
 }
 
 type Turn struct {
-	TurnID    string
-	Role      string
-	Content   string
-	CreatedAt time.Time
+	TurnID         string
+	Role           string
+	Content        string
+	CreatedAt      time.Time
+	ConversationID string
+	SpeakerKind    string
+	SpeakerID      string
+	BatchID        string
+	Sequence       uint64
+	DisplayName    string
+	AvatarURL      string
 }
+
+type Scope struct {
+	Identity       Identity
+	ConversationID string
+}
+
+const (
+	SpeakerUser      = "user"
+	SpeakerCharacter = "character"
+
+	BatchGenerating = "generating"
+	BatchComplete   = "complete"
+	BatchPartial    = "partial"
+	BatchFailed     = "failed"
+)
+
+type Batch struct {
+	BatchID           string
+	ClientRequestID   string
+	ConversationID    string
+	PlannedSpeakerIDs []string
+	UserMessage       Turn
+	CharacterMessages []Turn
+	Status            string
+	InterruptionCode  string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type BeginState string
+
+const (
+	BeginStarted  BeginState = "started"
+	BeginExisting BeginState = "existing"
+)
 
 type Store interface {
 	AddTurn(ctx context.Context, identity Identity, role, content string) (Turn, error)

@@ -30,6 +30,7 @@ go.work.sum
 # Local agent notes
 AGENTS.md
 UNFINISHED.md
+ERROR.md
 
 # Editor/IDE
 # .idea/

@@ -13,18 +13,20 @@ import (
 )
 
 type RedisStore struct {
-	client *redis.Client
-	prefix string
-	ttl    time.Duration
-	now    func() time.Time
+	client   *redis.Client
+	prefix   string
+	ttl      time.Duration
+	leaseTTL time.Duration
+	now      func() time.Time
 }
 
 func NewRedisStore(client *redis.Client, prefix string, ttl time.Duration) *RedisStore {
 	return &RedisStore{
-		client: client,
-		prefix: prefix,
-		ttl:    ttl,
-		now:    time.Now,
+		client:   client,
+		prefix:   prefix,
+		ttl:      ttl,
+		leaseTTL: 45 * time.Second,
+		now:      time.Now,
 	}
 }
 

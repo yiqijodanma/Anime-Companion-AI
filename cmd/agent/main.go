@@ -20,6 +20,7 @@ import (
 	"companion-ai/internal/conversation"
 	"companion-ai/internal/logging"
 	"companion-ai/internal/memory"
+	"companion-ai/internal/orchestration"
 	"companion-ai/internal/summarize"
 )
 
@@ -76,7 +77,10 @@ func main() {
 	}
 
 	conversations := conversation.NewRedisStore(redisClient, "", 72*time.Hour)
-	srv := agent.NewServer(repo, conversations, chat.NewReplier(cm), summarize.NewSummarizer(cm)).WithLogger(log)
+	conversationApp := orchestration.NewApplication(conversations, repo, orchestration.NewDeepSeekAdapter(cm)).WithLogger(log)
+	srv := agent.NewServer(repo, conversations, chat.NewReplier(cm), summarize.NewSummarizer(cm)).
+		WithConversationApplication(conversationApp).
+		WithLogger(log)
 	lis, err := net.Listen("tcp", cfg.AgentGRPCAddr)
 	if err != nil {
 		log.Error("listen failed", "err", err)

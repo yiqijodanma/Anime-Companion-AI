@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.34.0--rc2
-// source: api/proto/agent.proto
+// source: agent.proto
 
 package agentv1
 
@@ -20,6 +20,8 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	AgentService_Reply_FullMethodName                      = "/agent.v1.AgentService/Reply"
+	AgentService_ListConversationSpaces_FullMethodName     = "/agent.v1.AgentService/ListConversationSpaces"
+	AgentService_SendConversationMessage_FullMethodName    = "/agent.v1.AgentService/SendConversationMessage"
 	AgentService_RunDailyMaintenance_FullMethodName        = "/agent.v1.AgentService/RunDailyMaintenance"
 	AgentService_ListConversationMessages_FullMethodName   = "/agent.v1.AgentService/ListConversationMessages"
 	AgentService_DeleteConversationMessages_FullMethodName = "/agent.v1.AgentService/DeleteConversationMessages"
@@ -30,6 +32,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentServiceClient interface {
 	Reply(ctx context.Context, in *ReplyRequest, opts ...grpc.CallOption) (*ReplyResponse, error)
+	ListConversationSpaces(ctx context.Context, in *ListConversationSpacesRequest, opts ...grpc.CallOption) (*ListConversationSpacesResponse, error)
+	SendConversationMessage(ctx context.Context, in *SendConversationMessageRequest, opts ...grpc.CallOption) (*SendConversationMessageResponse, error)
 	RunDailyMaintenance(ctx context.Context, in *MaintenanceRequest, opts ...grpc.CallOption) (*MaintenanceResult, error)
 	ListConversationMessages(ctx context.Context, in *ListConversationMessagesRequest, opts ...grpc.CallOption) (*ListConversationMessagesResponse, error)
 	DeleteConversationMessages(ctx context.Context, in *DeleteConversationMessagesRequest, opts ...grpc.CallOption) (*DeleteConversationMessagesResponse, error)
@@ -47,6 +51,26 @@ func (c *agentServiceClient) Reply(ctx context.Context, in *ReplyRequest, opts .
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReplyResponse)
 	err := c.cc.Invoke(ctx, AgentService_Reply_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListConversationSpaces(ctx context.Context, in *ListConversationSpacesRequest, opts ...grpc.CallOption) (*ListConversationSpacesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConversationSpacesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListConversationSpaces_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) SendConversationMessage(ctx context.Context, in *SendConversationMessageRequest, opts ...grpc.CallOption) (*SendConversationMessageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendConversationMessageResponse)
+	err := c.cc.Invoke(ctx, AgentService_SendConversationMessage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +112,8 @@ func (c *agentServiceClient) DeleteConversationMessages(ctx context.Context, in 
 // for forward compatibility.
 type AgentServiceServer interface {
 	Reply(context.Context, *ReplyRequest) (*ReplyResponse, error)
+	ListConversationSpaces(context.Context, *ListConversationSpacesRequest) (*ListConversationSpacesResponse, error)
+	SendConversationMessage(context.Context, *SendConversationMessageRequest) (*SendConversationMessageResponse, error)
 	RunDailyMaintenance(context.Context, *MaintenanceRequest) (*MaintenanceResult, error)
 	ListConversationMessages(context.Context, *ListConversationMessagesRequest) (*ListConversationMessagesResponse, error)
 	DeleteConversationMessages(context.Context, *DeleteConversationMessagesRequest) (*DeleteConversationMessagesResponse, error)
@@ -103,6 +129,12 @@ type UnimplementedAgentServiceServer struct{}
 
 func (UnimplementedAgentServiceServer) Reply(context.Context, *ReplyRequest) (*ReplyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Reply not implemented")
+}
+func (UnimplementedAgentServiceServer) ListConversationSpaces(context.Context, *ListConversationSpacesRequest) (*ListConversationSpacesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConversationSpaces not implemented")
+}
+func (UnimplementedAgentServiceServer) SendConversationMessage(context.Context, *SendConversationMessageRequest) (*SendConversationMessageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendConversationMessage not implemented")
 }
 func (UnimplementedAgentServiceServer) RunDailyMaintenance(context.Context, *MaintenanceRequest) (*MaintenanceResult, error) {
 	return nil, status.Error(codes.Unimplemented, "method RunDailyMaintenance not implemented")
@@ -148,6 +180,42 @@ func _AgentService_Reply_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AgentServiceServer).Reply(ctx, req.(*ReplyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListConversationSpaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConversationSpacesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListConversationSpaces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListConversationSpaces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListConversationSpaces(ctx, req.(*ListConversationSpacesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_SendConversationMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendConversationMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).SendConversationMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_SendConversationMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).SendConversationMessage(ctx, req.(*SendConversationMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -218,6 +286,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AgentService_Reply_Handler,
 		},
 		{
+			MethodName: "ListConversationSpaces",
+			Handler:    _AgentService_ListConversationSpaces_Handler,
+		},
+		{
+			MethodName: "SendConversationMessage",
+			Handler:    _AgentService_SendConversationMessage_Handler,
+		},
+		{
 			MethodName: "RunDailyMaintenance",
 			Handler:    _AgentService_RunDailyMaintenance_Handler,
 		},
@@ -231,5 +307,5 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "api/proto/agent.proto",
+	Metadata: "agent.proto",
 }

@@ -165,7 +165,12 @@ func (h *Handlers) requireUser() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		user, err := h.Auth.CurrentUser(c.Request.Context(), token)
+		var user authn.User
+		if h.AuthenticateSession != nil {
+			user, err = h.AuthenticateSession(c.Request.Context(), token)
+		} else {
+			user, err = h.Auth.CurrentUser(c.Request.Context(), token)
+		}
 		if err != nil {
 			h.clearSessionCookie(c)
 			apiError(c, http.StatusUnauthorized, "unauthorized", "登录状态已失效")

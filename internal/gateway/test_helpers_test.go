@@ -22,6 +22,32 @@ type fakeAgent struct {
 	lastChannel string
 	lastID      string
 	deleteCalls int
+	spaces      []ConversationSpace
+	batch       ResponseBatch
+}
+
+func (f *fakeAgent) ListConversationSpaces(_ context.Context, channel, externalID string) ([]ConversationSpace, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastChannel = channel
+	f.lastID = externalID
+	return append([]ConversationSpace(nil), f.spaces...), nil
+}
+
+func (f *fakeAgent) SendConversationMessage(_ context.Context, channel, externalID, conversationID, content, clientRequestID string) (ResponseBatch, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastChannel = channel
+	f.lastID = externalID
+	return f.batch, nil
+}
+
+func (f *fakeAgent) ListConversationMessages(_ context.Context, channel, externalID, conversationID string) ([]ConversationMessage, error) {
+	return f.ListMessages(context.Background(), channel, externalID)
+}
+
+func (f *fakeAgent) DeleteConversationMessages(_ context.Context, channel, externalID, conversationID string) error {
+	return f.DeleteMessages(context.Background(), channel, externalID)
 }
 
 func (f *fakeAgent) Reply(_ context.Context, channel, externalID, text string) (string, error) {

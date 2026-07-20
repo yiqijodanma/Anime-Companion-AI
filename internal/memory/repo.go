@@ -12,10 +12,14 @@ type Repo struct {
 }
 
 type ArchiveTurn struct {
-	TurnID    string
-	Role      string
-	Content   string
-	CreatedAt time.Time
+	TurnID      string
+	Role        string
+	Content     string
+	CreatedAt   time.Time
+	SpeakerKind string
+	SpeakerID   string
+	BatchID     string
+	Sequence    uint64
 }
 
 func NewRepo(db *gorm.DB) (*Repo, error) {
@@ -93,14 +97,22 @@ func (r *Repo) SaveSummary(openID string, date time.Time, content string) error 
 }
 
 func (r *Repo) RecentSummariesForIdentity(channel, externalID string) ([]MemorySummary, error) {
+	return r.RecentSummariesForScope(channel, externalID, "direct-haruhi")
+}
+
+func (r *Repo) RecentSummariesForScope(channel, externalID, conversationID string) ([]MemorySummary, error) {
 	cutoff := beijingDate(time.Now()).AddDate(0, 0, -7)
 	var sums []MemorySummary
-	err := r.db.Where("channel = ? AND external_id = ? AND message_date >= ?", channel, externalID, cutoff).
+	err := r.db.Where("channel = ? AND external_id = ? AND conversation_id = ? AND message_date >= ?", channel, externalID, conversationID, cutoff).
 		Order("message_date asc").Find(&sums).Error
 	return sums, err
 }
 
 func (r *Repo) ArchiveDailyConversation(channel, externalID string, date time.Time, turns []ArchiveTurn, summary string) error {
+	return r.ArchiveDailyConversationForScope(channel, externalID, "direct-haruhi", date, turns, summary)
+}
+
+func (r *Repo) ArchiveDailyConversationForScope(channel, externalID, conversationID string, date time.Time, turns []ArchiveTurn, summary string) error {
 	messageDate := beijingDate(date)
 	now := time.Now()
 	return r.db.Transaction(func(tx *gorm.DB) error {
@@ -110,18 +122,23 @@ func (r *Repo) ArchiveDailyConversation(channel, externalID string, date time.Ti
 				createdAt = now
 			}
 			msg := Message{
-				OpenID:      externalID,
-				Channel:     channel,
-				ExternalID:  externalID,
-				TurnID:      turn.TurnID,
-				Role:        turn.Role,
-				Content:     turn.Content,
-				MessageDate: messageDate,
-				ArchivedAt:  now,
-				CreatedAt:   createdAt,
+				OpenID:         externalID,
+				Channel:        channel,
+				ExternalID:     externalID,
+				TurnID:         turn.TurnID,
+				ConversationID: conversationID,
+				SpeakerKind:    turn.SpeakerKind,
+				SpeakerID:      turn.SpeakerID,
+				BatchID:        turn.BatchID,
+				Sequence:       turn.Sequence,
+				Role:           turn.Role,
+				Content:        turn.Content,
+				MessageDate:    messageDate,
+				ArchivedAt:     now,
+				CreatedAt:      createdAt,
 			}
 			if err := tx.Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "message_date"}, {Name: "turn_id"}},
+				Columns:   []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "conversation_id"}, {Name: "message_date"}, {Name: "turn_id"}},
 				DoNothing: true,
 			}).Create(&msg).Error; err != nil {
 				return err
@@ -131,17 +148,18 @@ func (r *Repo) ArchiveDailyConversation(channel, externalID string, date time.Ti
 			return nil
 		}
 		sum := MemorySummary{
-			OpenID:      externalID,
-			Channel:     channel,
-			ExternalID:  externalID,
-			SummaryDate: messageDate,
-			MessageDate: messageDate,
-			Content:     summary,
-			ArchivedAt:  now,
-			CreatedAt:   now,
+			OpenID:         externalID,
+			Channel:        channel,
+			ExternalID:     externalID,
+			ConversationID: conversationID,
+			SummaryDate:    messageDate,
+			MessageDate:    messageDate,
+			Content:        summary,
+			ArchivedAt:     now,
+			CreatedAt:      now,
 		}
 		return tx.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "message_date"}},
+			Columns: []clause.Column{{Name: "channel"}, {Name: "external_id"}, {Name: "conversation_id"}, {Name: "message_date"}},
 			DoUpdates: clause.Assignments(map[string]interface{}{
 				"open_id":      externalID,
 				"summary_date": messageDate,
@@ -150,6 +168,13 @@ func (r *Repo) ArchiveDailyConversation(channel, externalID string, date time.Ti
 			}),
 		}).Create(&sum).Error
 	})
+}
+
+func (r *Repo) MessagesForScopeDate(channel, externalID, conversationID string, day time.Time) ([]Message, error) {
+	var messages []Message
+	err := r.db.Where("channel = ? AND external_id = ? AND conversation_id = ? AND message_date = ?", channel, externalID, conversationID, beijingDate(day)).
+		Order("sequence asc, created_at asc, id asc").Find(&messages).Error
+	return messages, err
 }
 
 func (r *Repo) ActiveOpenIDsForDate(day time.Time) ([]string, error) {

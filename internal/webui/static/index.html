@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/app/assets/avatars/haruhi.svg">
+  <title>SOS 团聊天室</title>
+  <link rel="stylesheet" href="/app/styles.css?v=20260720-2">
+</head>
+<body>
+  <main id="login-panel" class="login-shell" hidden>
+    <section class="login-card" aria-labelledby="login-title">
+      <p class="eyebrow">让世界变得更热闹</p>
+      <h1 id="login-title">SOS 团聊天室</h1>
+      <p class="login-copy">使用已有团员账号登录。</p>
+      <form id="login-form">
+        <label>邮箱<input id="email" name="email" type="email" autocomplete="email" required></label>
+        <label>密码<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+        <div class="captcha-row">
+          <label>验证码<input id="captcha-answer" name="captcha_answer" autocomplete="off" required></label>
+          <button id="captcha-refresh" class="captcha-button" type="button" aria-label="刷新验证码">
+            <img id="captcha-image" alt="图形验证码">
+          </button>
+        </div>
+        <p id="login-error" class="error-text" role="alert"></p>
+        <button class="primary-button" type="submit">登录并加入讨论</button>
+      </form>
+    </section>
+  </main>
+
+  <main id="chat-app" class="app-shell" hidden>
+    <aside class="sidebar" aria-label="会话列表">
+      <div class="brand"><span class="brand-mark">SOS</span><div><strong>SOS 团</strong><small>超自然现象研究部</small></div></div>
+      <nav id="conversation-list" class="conversation-list"></nav>
+      <button id="logout-button" class="quiet-button" type="button">退出登录</button>
+    </aside>
+    <section class="chat-panel">
+      <header class="chat-header">
+        <div><h1 id="conversation-title">请选择会话</h1><p id="participant-names"></p></div>
+        <button id="clear-button" class="quiet-button" type="button" disabled>清除今天记录</button>
+      </header>
+      <div id="notice" class="system-notice" role="status" hidden></div>
+      <div id="messages" class="messages" role="log" aria-live="polite" aria-label="聊天记录"></div>
+      <div id="discussion-status" class="discussion-status" role="status" hidden>
+        <span></span><span></span><span></span><b>SOS 团正在讨论</b>
+      </div>
+      <form id="composer" class="composer">
+        <label class="sr-only" for="message-input">输入消息</label>
+        <textarea id="message-input" maxlength="4000" rows="2" placeholder="对 SOS 团说点什么……" required></textarea>
+        <button id="send-button" class="send-button" type="submit" disabled>发送</button>
+      </form>
+    </section>
+  </main>
+  <script src="/app/app.js?v=20260720-2" defer></script>
+</body>
+</html>

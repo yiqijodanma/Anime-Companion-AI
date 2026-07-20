@@ -171,6 +171,38 @@ func TestArchiveDailyConversationIsIdempotentForSameTurnIDs(t *testing.T) {
 	require.Equal(t, "摘要二", sums[0].Content)
 }
 
+func TestArchiveStructuredMessagesPreservesScopeSpeakerBatchAndSequence(t *testing.T) {
+	repo := newTestRepo(t)
+	target := beijingDate(time.Now()).AddDate(0, 0, -1)
+	created := target.Add(12 * time.Hour)
+	turns := []ArchiveTurn{
+		{TurnID: "u", Role: RoleUser, Content: "问题", CreatedAt: created, SpeakerKind: "user", SpeakerID: "user", BatchID: "batch-1", Sequence: 1},
+		{TurnID: "y", Role: RoleAssistant, Content: "有希", CreatedAt: created, SpeakerKind: "character", SpeakerID: "yuki", BatchID: "batch-1", Sequence: 2},
+		{TurnID: "k", Role: RoleAssistant, Content: "阿虚", CreatedAt: created, SpeakerKind: "character", SpeakerID: "kyon", BatchID: "batch-1", Sequence: 3},
+		{TurnID: "h", Role: RoleAssistant, Content: "春日", CreatedAt: created, SpeakerKind: "character", SpeakerID: "haruhi", BatchID: "batch-1", Sequence: 4},
+	}
+	require.NoError(t, repo.ArchiveDailyConversationForScope("api", "owner", "sos-group", target, turns, "群聊摘要"))
+	require.NoError(t, repo.ArchiveDailyConversationForScope("api", "owner", "direct-haruhi", target, nil, "单聊摘要"))
+
+	archived, err := repo.MessagesForScopeDate("api", "owner", "sos-group", target)
+	require.NoError(t, err)
+	require.Len(t, archived, 4)
+	for i, message := range archived {
+		require.Equal(t, uint64(i+1), message.Sequence)
+		require.Equal(t, "batch-1", message.BatchID)
+		require.Equal(t, turns[i].SpeakerID, message.SpeakerID)
+		require.Equal(t, "sos-group", message.ConversationID)
+	}
+	groupSummaries, err := repo.RecentSummariesForScope("api", "owner", "sos-group")
+	require.NoError(t, err)
+	require.Len(t, groupSummaries, 1)
+	require.Equal(t, "群聊摘要", groupSummaries[0].Content)
+	directSummaries, err := repo.RecentSummariesForScope("api", "owner", "direct-haruhi")
+	require.NoError(t, err)
+	require.Len(t, directSummaries, 1)
+	require.Equal(t, "单聊摘要", directSummaries[0].Content)
+}
+
 func TestRecentSummariesForIdentityDoesNotMixChannels(t *testing.T) {
 	repo := newTestRepo(t)
 	now := time.Now()

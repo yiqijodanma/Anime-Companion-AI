@@ -65,9 +65,11 @@ db: env
 	$(COMPOSE_DEV) pull postgres redis mailpit migrate
 	$(COMPOSE_DEV) up -d --wait postgres redis mailpit
 	$(COMPOSE_DEV) run --rm migrate
+	$(COMPOSE_DEV) run --rm --build --no-deps seed-admin
 
 migrate-up: env
 	$(COMPOSE_DEV) run --rm migrate
+	$(COMPOSE_DEV) run --rm --build --no-deps seed-admin
 
 migrate-down: env
 	$(COMPOSE_DEV) run --rm migrate -path=/migrations -database "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)?sslmode=disable" down 1
@@ -96,6 +98,7 @@ run-gateway-pro: check-secrets
 pro: env build
 	$(COMPOSE_PRO) up -d --wait postgres redis
 	$(COMPOSE_PRO) run --rm migrate
+	$(COMPOSE_PRO) run --rm --build --no-deps seed-admin
 	@echo "Pro database is ready and binaries are built."
 	@echo "Run these in separate terminals:"
 	@echo "  make run-agent-pro"
@@ -103,7 +106,7 @@ pro: env build
 
 docker: check-secrets
 	$(COMPOSE_PRO) pull postgres redis migrate
-	$(COMPOSE_PRO) up -d --build postgres redis migrate agent gateway
+	$(COMPOSE_PRO) up -d --build postgres redis migrate seed-admin agent gateway
 
 test: db
 	$(TEST_ENV) go test ./...

@@ -1,10 +1,10 @@
 # Anime-Companion-AI
 
-陪伴型微信公众号 AI。Gateway 接微信公众号测试号 HTTP/XML 与客服消息，Agent 负责凉宫春日人设、DeepSeek 对话链和 PostgreSQL 记忆。
+陪伴型 SOS 团 AI。认证 Web 用户拥有一个五人群聊和五个独立单聊；微信公众号继续使用凉宫春日单聊。Gateway 负责 Web/微信传输，Agent 负责多角色编排、DeepSeek 对话链、Redis 当日上下文和 PostgreSQL 长期记忆。
 
 ## 架构
 
-`Gateway(Gin) -> gRPC -> Agent(Eino + DeepSeek) -> PostgreSQL`
+`Gateway(Gin + embedded Web UI) -> gRPC -> Agent(orchestration + Eino/DeepSeek) -> Redis + PostgreSQL`
 
 ## 本地测试
 
@@ -92,20 +92,27 @@ make docker
 curl.exe http://localhost:8080/healthz
 ```
 
+浏览器入口为 `http://localhost:8080/app/`。未登录时只显示已有账号的验证码登录；登录后左侧固定显示 SOS 团群聊和五个成员单聊。注册、验证和密码找回仍使用现有 REST 流程。
+
 Web REST 接口必须先完成邮箱注册并取得 `HttpOnly` 会话 Cookie；前端不会再提交或保存匿名 `external_id`。本地 Mailpit 收件箱位于 `http://localhost:8025`，生产环境必须替换 `AUTH_PEPPER` 并将 `COOKIE_SECURE=true`。
 
-认证后的对话接口需要真实 DeepSeek key 和可访问外网：
+认证后的新会话接口需要真实 DeepSeek key 和可访问外网。每次发送都要使用新的 UUID `client_request_id`；网络重试必须复用原 UUID：
 
 ```powershell
-curl.exe -b cookies.txt -X POST http://localhost:8080/api/v1/conversations/messages -H "Content-Type: application/json" -d '{"content":"你好"}'
+curl.exe -b cookies.txt http://localhost:8080/api/v1/conversations
+curl.exe -b cookies.txt -X POST http://localhost:8080/api/v1/conversations/sos-group/messages -H "Content-Type: application/json" -d '{"content":"有希、阿虚和团长怎么看？","client_request_id":"11111111-1111-4111-8111-111111111111"}'
 ```
 
-当天记忆管理接口：
+当天消息和单空间清理：
 
 ```powershell
-curl.exe -b cookies.txt http://localhost:8080/api/v1/conversations/messages
-curl.exe -b cookies.txt -X DELETE http://localhost:8080/api/v1/conversations/messages
+curl.exe -b cookies.txt http://localhost:8080/api/v1/conversations/sos-group/messages
+curl.exe -b cookies.txt -X DELETE http://localhost:8080/api/v1/conversations/direct-yuki/messages
 ```
+
+旧的认证路由 `/api/v1/conversations/messages` 暂时保留为 deprecated alias，固定映射到 `direct-haruhi`；新客户端不要再使用它。
+
+真实模型的非 CI smoke 建议各发一轮：明确只问一名成员、邀请三名成员讨论、邀请全体五人发言。人工检查参与人数是否自然、角色口吻和串行延迟；不要把随机措辞写进自动测试。
 
 ## 微信测试号配置
 

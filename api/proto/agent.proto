@@ -8,9 +8,34 @@ option go_package = "companion-ai/gen/agentv1;agentv1";
 
 service AgentService {
   rpc Reply(ReplyRequest) returns (ReplyResponse);
+  rpc ListConversationSpaces(ListConversationSpacesRequest) returns (ListConversationSpacesResponse);
+  rpc SendConversationMessage(SendConversationMessageRequest) returns (SendConversationMessageResponse);
   rpc RunDailyMaintenance(MaintenanceRequest) returns (MaintenanceResult);
   rpc ListConversationMessages(ListConversationMessagesRequest) returns (ListConversationMessagesResponse);
   rpc DeleteConversationMessages(DeleteConversationMessagesRequest) returns (DeleteConversationMessagesResponse);
+}
+
+message ListConversationSpacesRequest {
+  string channel = 1;
+  string external_id = 2;
+}
+
+message CharacterMetadata {
+  string id = 1;
+  string display_name = 2;
+  string avatar_url = 3;
+  string description = 4;
+}
+
+message ConversationSpace {
+  string id = 1;
+  string kind = 2;
+  string display_name = 3;
+  repeated CharacterMetadata participants = 4;
+}
+
+message ListConversationSpacesResponse {
+  repeated ConversationSpace spaces = 1;
 }
 
 message ReplyRequest {
@@ -40,6 +65,38 @@ message ConversationMessage {
   string content = 3;
   google.protobuf.Timestamp created_at = 4;
   string turn_id = 5;
+  string conversation_id = 6;
+  string speaker_kind = 7;
+  string speaker_id = 8;
+  string batch_id = 9;
+  uint64 sequence = 10;
+  string display_name = 11;
+  string avatar_url = 12;
+}
+
+message ResponseBatch {
+  string batch_id = 1;
+  string client_request_id = 2;
+  string conversation_id = 3;
+  repeated string planned_speaker_ids = 4;
+  ConversationMessage user_message = 5;
+  repeated ConversationMessage character_messages = 6;
+  string status = 7;
+  string interruption_code = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message SendConversationMessageRequest {
+  string channel = 1;
+  string external_id = 2;
+  string conversation_id = 3;
+  string content = 4;
+  string client_request_id = 5;
+}
+
+message SendConversationMessageResponse {
+  ResponseBatch batch = 1;
 }
 
 message ListConversationMessagesRequest {
@@ -47,6 +104,7 @@ message ListConversationMessagesRequest {
   string open_id = 1;
   string channel = 2;
   string external_id = 3;
+  string conversation_id = 4;
 }
 
 message ListConversationMessagesResponse {
@@ -58,6 +116,7 @@ message DeleteConversationMessagesRequest {
   string open_id = 1;
   string channel = 2;
   string external_id = 3;
+  string conversation_id = 4;
 }
 
 message DeleteConversationMessagesResponse {}
