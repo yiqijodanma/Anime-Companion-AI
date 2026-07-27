@@ -121,11 +121,11 @@ func (h *Handlers) authForgotPassword(c *gin.Context) {
 		return
 	}
 	if err := h.Auth.StartPasswordReset(c.Request.Context(), req.Email, req.CaptchaID, req.CaptchaAnswer); err != nil {
-		if errors.Is(err, authn.ErrInvalidCaptcha) {
+		if errors.Is(err, authn.ErrInvalidCaptcha) || errors.Is(err, authn.ErrMailUnavailable) {
 			h.authError(c, err)
 			return
 		}
-		// Avoid revealing whether an account exists or whether mail delivery failed.
+		// Avoid revealing whether an account exists; unexpected internal errors keep the generic response.
 	}
 	c.JSON(http.StatusAccepted, gin.H{"status": "if_account_exists_email_sent"})
 }
@@ -145,7 +145,15 @@ func (h *Handlers) authResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-func (h *Handlers) authSession(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"user": currentUser(c)}) }
+func (h *Handlers) authSession(c *gin.Context) {
+	user := currentUser(c)
+	snapshot, err := h.currentQuota(c.Request.Context(), user)
+	if err != nil {
+		quotaUnavailable(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": user, "quota": snapshot})
+}
 
 func (h *Handlers) authLogout(c *gin.Context) {
 	token, _ := c.Cookie(sessionCookie)
@@ -206,6 +214,8 @@ func (h *Handlers) authError(c *gin.Context, err error) {
 		apiError(c, http.StatusBadRequest, "invalid_code", "邮箱验证码不正确或已过期")
 	case errors.Is(err, authn.ErrEmailInUse):
 		apiError(c, http.StatusConflict, "email_in_use", "该邮箱已经注册")
+	case errors.Is(err, authn.ErrMailUnavailable):
+		apiError(c, http.StatusServiceUnavailable, "email_unavailable", "邮件发送暂时不可用，请稍后重试")
 	case errors.Is(err, authn.ErrRateLimited):
 		apiError(c, http.StatusTooManyRequests, "rate_limited", "请稍后再发送验证码")
 	default:

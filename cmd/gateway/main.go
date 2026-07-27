@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +21,7 @@ import (
 	"companion-ai/internal/config"
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/logging"
+	"companion-ai/internal/quota"
 	"companion-ai/internal/redisstore"
 	"companion-ai/internal/wechat"
 )
@@ -30,6 +36,8 @@ func main() {
 		log.Error("config load failed", "err", err)
 		panic(err)
 	}
+	runCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 
 	conn, err := grpc.NewClient(cfg.AgentGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -51,51 +59,97 @@ func main() {
 		log.Error("postgres client failed", "err", err)
 		panic(err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Error("postgres handle failed", "err", err)
+		panic(err)
+	}
+	defer sqlDB.Close()
 	authService, err := authn.NewService(db, redisClient, authn.SMTPMailer{
-		Addr:     fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
-		Host:     cfg.SMTPHost,
-		Username: cfg.SMTPUsername,
-		Password: cfg.SMTPPassword,
-		From:     cfg.SMTPFrom,
+		Addr:        fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
+		Host:        cfg.SMTPHost,
+		Username:    cfg.SMTPUsername,
+		Password:    cfg.SMTPPassword,
+		From:        cfg.SMTPFrom,
+		ImplicitTLS: cfg.SMTPImplicitTLS,
 	}, authn.Config{Pepper: cfg.AuthPepper})
 	if err != nil {
 		log.Error("auth service failed", "err", err)
 		panic(err)
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
-	tokens := wechat.NewTokenManager(cfg.WechatAppID, cfg.WechatAppSecret, httpClient).
-		WithCache(redisstore.NewTokenCache(redisClient, "gateway:wechat:access_token"))
-	pusher := wechat.NewKFClient(httpClient)
+	quotaManager, err := quota.NewRedis(redisClient, "gateway:daily-quota:", cfg.DailyQuotaLimit)
+	if err != nil {
+		log.Error("quota service failed", "err", err)
+		panic(err)
+	}
 	agentClient := gateway.NewAgentClient(conn)
-
 	h := &gateway.Handlers{
-		Token:  cfg.WechatToken,
-		Agent:  agentClient,
-		Tokens: tokens,
-		Pusher: pusher,
-		Log:    log,
-		Dedupe: redisstore.NewMessageDeduper(redisClient, "gateway:wechat:msg:", 72*time.Hour),
+		WechatEnabled: cfg.WechatEnabled,
+		Agent:         agentClient,
+		Log:           log,
 		Limiter: redisstore.NewFixedWindowLimiter(
 			redisClient,
 			"gateway:open_id:",
 			30,
 			time.Minute,
 		),
+		Quota:        quotaManager,
 		Auth:         authService,
 		CookieSecure: cfg.CookieSecure,
 	}
+	if cfg.WechatEnabled {
+		httpClient := &http.Client{Timeout: 10 * time.Second}
+		tokens := wechat.NewTokenManager(cfg.WechatAppID, cfg.WechatAppSecret, httpClient).
+			WithCache(redisstore.NewTokenCache(redisClient, "gateway:wechat:access_token"))
+		h.Token = cfg.WechatToken
+		h.Tokens = tokens
+		h.Pusher = wechat.NewKFClient(httpClient)
+		h.Dedupe = redisstore.NewMessageDeduper(redisClient, "gateway:wechat:msg:", 72*time.Hour)
+		cronInstance := gateway.StartCron(agentClient, tokens, h.Pusher, log)
+		defer cronInstance.Stop()
+		log.Info("wechat integration enabled")
+	} else {
+		log.Info("wechat integration disabled")
+	}
 
-	cronInst := gateway.StartCron(agentClient, tokens, pusher, log)
-	defer cronInst.Stop()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	h.RegisterRoutes(router)
+	gateway.RegisterOperationalHealth(router,
+		gateway.ReadinessCheck{Name: "agent", Check: agentClient.Check},
+		gateway.ReadinessCheck{Name: "postgres", Check: sqlDB.PingContext},
+		gateway.ReadinessCheck{Name: "redis", Check: func(ctx context.Context) error { return redisClient.Ping(ctx).Err() }},
+	)
 
-	r := gin.New()
-	r.Use(gin.Recovery())
-	h.RegisterRoutes(r)
-
-	log.Info("gateway http serving", "addr", cfg.GatewayHTTPAddr)
-	if err := r.Run(cfg.GatewayHTTPAddr); err != nil {
-		log.Error("http serve failed", "err", err)
-		panic(err)
+	server := &http.Server{
+		Addr:              cfg.GatewayHTTPAddr,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		WriteTimeout:      90 * time.Second,
+	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- server.ListenAndServe() }()
+	log.Info("gateway http serving",
+		"addr", cfg.GatewayHTTPAddr,
+		"release_id", cfg.ReleaseID,
+		"backend_commit", cfg.BackendCommit,
+		"frontend_commit", cfg.FrontendCommit,
+	)
+	select {
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("http serve failed", "err", err)
+			panic(err)
+		}
+	case <-runCtx.Done():
+		log.Info("gateway shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Error("gateway graceful shutdown failed", "err", err)
+			_ = server.Close()
+		}
 	}
 }

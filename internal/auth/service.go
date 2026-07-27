@@ -26,6 +26,7 @@ var (
 	ErrEmailInUse         = errors.New("email already registered")
 	ErrRateLimited        = errors.New("please wait before requesting another code")
 	ErrUnauthorized       = errors.New("authentication required")
+	ErrMailUnavailable    = errors.New("verification email temporarily unavailable")
 )
 
 type Config struct {
@@ -284,7 +285,7 @@ func (s *Service) createPending(ctx context.Context, purpose, email, passwordHas
 	}
 	if err := s.mailer.SendVerification(ctx, email, code, purpose); err != nil {
 		_ = s.redis.Del(ctx, s.pendingKey(purpose, email), cooldown).Err()
-		return err
+		return ErrMailUnavailable
 	}
 	return nil
 }

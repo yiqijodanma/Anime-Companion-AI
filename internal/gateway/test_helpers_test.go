@@ -24,6 +24,10 @@ type fakeAgent struct {
 	deleteCalls int
 	spaces      []ConversationSpace
 	batch       ResponseBatch
+	sendErr     error
+	sendCalls   int
+	sendStarted chan struct{}
+	sendRelease <-chan struct{}
 }
 
 func (f *fakeAgent) ListConversationSpaces(_ context.Context, channel, externalID string) ([]ConversationSpace, error) {
@@ -36,10 +40,19 @@ func (f *fakeAgent) ListConversationSpaces(_ context.Context, channel, externalI
 
 func (f *fakeAgent) SendConversationMessage(_ context.Context, channel, externalID, conversationID, content, clientRequestID string) (ResponseBatch, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.lastChannel = channel
 	f.lastID = externalID
-	return f.batch, nil
+	f.sendCalls++
+	batch, err := f.batch, f.sendErr
+	started, release := f.sendStarted, f.sendRelease
+	f.mu.Unlock()
+	if started != nil {
+		started <- struct{}{}
+	}
+	if release != nil {
+		<-release
+	}
+	return batch, err
 }
 
 func (f *fakeAgent) ListConversationMessages(_ context.Context, channel, externalID, conversationID string) ([]ConversationMessage, error) {
@@ -94,6 +107,12 @@ func (f *fakeAgent) Calls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.replyCalls
+}
+
+func (f *fakeAgent) SendCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sendCalls
 }
 
 type fakeTokens struct {

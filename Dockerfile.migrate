@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+
+FROM migrate/migrate:v4.18.3
+
+ARG BACKEND_COMMIT=unknown
+ARG BUILD_TIMESTAMP=unknown
+
+LABEL org.opencontainers.image.title="Anime Companion AI Database Migrations" \
+      org.opencontainers.image.revision=$BACKEND_COMMIT \
+      org.opencontainers.image.created=$BUILD_TIMESTAMP \
+      io.animecompanion.backend.revision=$BACKEND_COMMIT
+
+COPY db/migrations /migrations
+
+USER 65532:65532
+ENTRYPOINT ["/migrate"]

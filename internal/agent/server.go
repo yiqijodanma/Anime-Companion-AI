@@ -219,7 +219,7 @@ func (s *Server) SendConversationMessage(ctx context.Context, req *agentv1.SendC
 		return nil, err
 	}
 	if s.app == nil {
-		return nil, status.Error(codes.Unavailable, "conversation application unavailable")
+		return nil, status.Error(codes.FailedPrecondition, "conversation application unavailable")
 	}
 	batch, err := s.app.Send(ctx, orchestration.SendCommand{
 		Scope: orchestration.Scope{
@@ -291,6 +291,8 @@ func orchestrationStatus(err error) error {
 		return status.Error(codes.NotFound, "conversation not found")
 	case errors.Is(err, conversation.ErrConversationBusy), errors.Is(err, conversation.ErrLeaseLost):
 		return status.Error(codes.Aborted, "conversation busy")
+	case errors.Is(err, orchestration.ErrNotStarted):
+		return status.Error(codes.FailedPrecondition, "conversation generation not started")
 	default:
 		return err
 	}

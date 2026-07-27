@@ -22,6 +22,7 @@ var (
 	ErrInvalidRequest       = errors.New("invalid request")
 	ErrMessageTooLarge      = errors.New("message too large")
 	ErrConversationNotFound = errors.New("conversation not found")
+	ErrNotStarted           = errors.New("conversation generation not started")
 )
 
 type Application struct {
@@ -79,14 +80,14 @@ func (a *Application) Send(ctx context.Context, command SendCommand) (ResponseBa
 	}
 	history, err := a.store.Messages(ctx, storageScope(command.Scope))
 	if err != nil {
-		return ResponseBatch{}, err
+		return ResponseBatch{}, fmt.Errorf("%w: load history: %v", ErrNotStarted, err)
 	}
 	history = normalizeCharacterMessages(history)
 	summaryTexts := []string(nil)
 	if a.repo != nil {
 		summaries, err := a.repo.RecentSummariesForScope(command.Scope.Owner.Channel, command.Scope.Owner.ID, command.Scope.ConversationID)
 		if err != nil {
-			return ResponseBatch{}, err
+			return ResponseBatch{}, fmt.Errorf("%w: load summaries: %v", ErrNotStarted, err)
 		}
 		for _, summary := range summaries {
 			summaryTexts = append(summaryTexts, summary.Content)

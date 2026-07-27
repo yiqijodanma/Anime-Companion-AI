@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LifecycleConfiguration>
+  <Rule>
+    <ID>anime-companion-postgres-seven-days</ID>
+    <Prefix>anime-companion/postgres/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>7</Days>
+    </Expiration>
+    <AbortMultipartUpload>
+      <Days>1</Days>
+    </AbortMultipartUpload>
+  </Rule>
+</LifecycleConfiguration>

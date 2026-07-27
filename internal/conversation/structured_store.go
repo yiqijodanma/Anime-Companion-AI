@@ -11,9 +11,14 @@ import (
 
 var beginBatchScript = `
 local existing = redis.call('HGET', KEYS[3], ARGV[1])
+local requestLedger = KEYS[3]
+if not existing then
+  existing = redis.call('HGET', KEYS[4], ARGV[1])
+  requestLedger = KEYS[4]
+end
 if existing then
   local snapshot = cjson.decode(existing)
-  if snapshot['Status'] == 'generating' and redis.call('EXISTS', KEYS[4]) == 0 then
+  if snapshot['Status'] == 'generating' and redis.call('EXISTS', KEYS[5]) == 0 then
     local messages = snapshot['CharacterMessages'] or {}
     if #messages == 0 then snapshot['Status'] = 'failed' else snapshot['Status'] = 'partial' end
     snapshot['InterruptionCode'] = 'generation_interrupted'
@@ -23,11 +28,11 @@ if existing then
   local planned = snapshot['PlannedSpeakerIDs'] or {}
   if #planned == 0 then snapshot['PlannedSpeakerIDs'] = nil end
   existing = cjson.encode(snapshot)
-  redis.call('HSET', KEYS[3], ARGV[1], existing)
+  redis.call('HSET', requestLedger, ARGV[1], existing)
   return {'existing', existing, ''}
 end
-if redis.call('EXISTS', KEYS[4]) == 1 then return {'busy', '', ''} end
-redis.call('SET', KEYS[4], ARGV[3], 'PX', ARGV[5])
+if redis.call('EXISTS', KEYS[5]) == 1 then return {'busy', '', ''} end
+redis.call('SET', KEYS[5], ARGV[3], 'PX', ARGV[5])
 local sequence = redis.call('INCR', KEYS[2])
 local batch = cjson.decode(ARGV[2])
 batch['UserMessage']['Sequence'] = sequence
@@ -38,13 +43,13 @@ if #planned == 0 then batch['PlannedSpeakerIDs'] = nil end
 local user = cjson.encode(batch['UserMessage'])
 local encoded = cjson.encode(batch)
 redis.call('RPUSH', KEYS[1], user)
-redis.call('SET', KEYS[5], encoded, 'PX', ARGV[4])
+redis.call('SET', KEYS[6], encoded, 'PX', ARGV[4])
 redis.call('HSET', KEYS[3], ARGV[1], encoded)
-redis.call('SADD', KEYS[6], ARGV[6])
+redis.call('SADD', KEYS[7], ARGV[6])
 redis.call('PEXPIRE', KEYS[1], ARGV[4])
 redis.call('PEXPIRE', KEYS[2], ARGV[4])
 redis.call('PEXPIRE', KEYS[3], ARGV[4])
-redis.call('PEXPIRE', KEYS[6], ARGV[4])
+redis.call('PEXPIRE', KEYS[7], ARGV[4])
 return {'started', encoded, ARGV[3]}
 `
 
@@ -69,9 +74,10 @@ func (s *RedisStore) BeginBatch(ctx context.Context, scope Scope, clientRequestI
 		return Batch{}, "", "", err
 	}
 	date := BeijingDate(now)
+	previousDate := date.AddDate(0, 0, -1)
 	leaseToken := newTurnID()
 	values, err := s.client.Eval(ctx, beginBatchScript, []string{
-		s.messagesKey(scope, date), s.sequenceKey(scope, date), s.requestsKey(scope, date),
+		s.messagesKey(scope, date), s.sequenceKey(scope, date), s.requestsKey(scope, date), s.requestsKey(scope, previousDate),
 		s.leaseKey(scope), s.batchKey(scope, batchID), s.activeScopesKey(date),
 	}, clientRequestID, batchData, leaseToken, s.ttl.Milliseconds(), s.leaseTTL.Milliseconds(), s.activeScopeMember(scope)).StringSlice()
 	if err != nil {
@@ -298,7 +304,9 @@ func (s *RedisStore) ClearScopeDate(ctx context.Context, scope Scope, day time.T
 		return err
 	}
 	pipe := s.client.TxPipeline()
-	pipe.Del(ctx, s.messagesKey(scope, date), s.sequenceKey(scope, date), s.requestsKey(scope, date))
+	pipe.Del(ctx, s.messagesKey(scope, date), s.sequenceKey(scope, date))
+	// Request results outlive visible history so a retried client identity cannot
+	// regenerate model output or bypass the user-level quota after a clear.
 	pipe.SRem(ctx, s.activeScopesKey(date), s.activeScopeMember(scope))
 	if scope.ConversationID == DefaultConversationID {
 		pipe.SRem(ctx, s.activeKey(date), s.activeMember(scope.Identity))

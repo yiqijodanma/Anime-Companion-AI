@@ -30,6 +30,7 @@ import (
 	"companion-ai/internal/gateway"
 	"companion-ai/internal/orchestration"
 	"companion-ai/internal/persona"
+	"companion-ai/internal/quota"
 )
 
 type listedSpace struct {
@@ -637,7 +638,7 @@ func TestDeprecatedAuthenticatedWebAliasMapsToDirectHaruhi(t *testing.T) {
 	w := authenticatedRequest(fixture.router, http.MethodPost, "/api/v1/conversations/messages", "owner-alias", `{"content":"旧接口消息"}`)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.Equal(t, "true", w.Header().Get("Deprecation"))
-	require.JSONEq(t, `{"reply":"旧接口仍由春日回答"}`, w.Body.String())
+	require.JSONEq(t, `{"reply":"旧接口仍由春日回答","quota":{"unlimited":false,"limit":20,"used":1,"remaining":19,"reset_at":"2026-07-24T00:00:00+08:00","revision":2}}`, w.Body.String())
 
 	legacyList := authenticatedRequest(fixture.router, http.MethodGet, "/api/v1/conversations/messages", "owner-alias", "")
 	require.Equal(t, http.StatusOK, legacyList.Code, legacyList.Body.String())
@@ -731,6 +732,7 @@ type conversationRESTFixture struct {
 	store  *conversation.RedisStore
 	client *gateway.AgentClient
 	app    *orchestration.Application
+	now    *time.Time
 }
 
 func newConversationRESTFixture(t *testing.T, model orchestration.Model) conversationRESTFixture {
@@ -738,8 +740,12 @@ func newConversationRESTFixture(t *testing.T, model orchestration.Model) convers
 	mini := miniredis.RunT(t)
 	redisClient := redis.NewClient(&redis.Options{Addr: mini.Addr()})
 	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
+	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
 	store := conversation.NewRedisStore(redisClient, "test:", 72*time.Hour)
+	store.SetClock(func() time.Time { return now })
 	app := orchestration.NewApplication(store, nil, model)
+	quotaManager, err := quota.NewRedis(redisClient, "test:quota:", 20)
+	require.NoError(t, err)
 
 	lis := bufconn.Listen(1024 * 1024)
 	grpcServer := grpc.NewServer()
@@ -757,11 +763,13 @@ func newConversationRESTFixture(t *testing.T, model orchestration.Model) convers
 	router := gin.New()
 	(&gateway.Handlers{
 		Agent: client,
+		Quota: quotaManager,
+		Now:   func() time.Time { return now },
 		AuthenticateSession: func(_ context.Context, token string) (authn.User, error) {
-			return authn.User{ID: strings.TrimPrefix(token, "token-")}, nil
+			return authn.User{ID: strings.TrimPrefix(token, "token-"), IsAdmin: token == "token-admin"}, nil
 		},
 	}).RegisterRoutes(router)
-	return conversationRESTFixture{router: router, store: store, client: client, app: app}
+	return conversationRESTFixture{router: router, store: store, client: client, app: app, now: &now}
 }
 
 func authenticatedRequest(router *gin.Engine, method, path, owner, body string) *httptest.ResponseRecorder {

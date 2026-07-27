@@ -24,13 +24,14 @@ func sign(token, ts, nonce string) string {
 
 func newTestHandlers(agent *fakeAgent, push *fakePusher) *Handlers {
 	return &Handlers{
-		Token:   "mytoken",
-		Agent:   agent,
-		Tokens:  &fakeTokens{token: "TOK"},
-		Pusher:  push,
-		Log:     slogDiscard(),
-		Dedupe:  NewMsgDeduper(),
-		nowSync: &sync.WaitGroup{},
+		WechatEnabled: true,
+		Token:         "mytoken",
+		Agent:         agent,
+		Tokens:        &fakeTokens{token: "TOK"},
+		Pusher:        push,
+		Log:           slogDiscard(),
+		Dedupe:        NewMsgDeduper(),
+		nowSync:       &sync.WaitGroup{},
 	}
 }
 

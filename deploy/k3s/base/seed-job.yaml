@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-admin
+  namespace: anime-companion
+  labels:
+    app.kubernetes.io/name: seed-admin
+    app.kubernetes.io/component: seed
+    app.kubernetes.io/part-of: anime-companion
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seed-admin
+        app.kubernetes.io/component: seed
+        app.kubernetes.io/part-of: anime-companion
+    spec:
+      serviceAccountName: anime-companion-jobs
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seed-admin
+          image: anime-companion-gateway:release-placeholder
+          imagePullPolicy: IfNotPresent
+          command: ["/app/seed-admin"]
+          env:
+            - name: PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: PG_DSN
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: ADMIN_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

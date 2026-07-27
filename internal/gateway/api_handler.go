@@ -84,19 +84,37 @@ func (h *Handlers) webSendConversationMessage(c *gin.Context) {
 		apiError(c, http.StatusRequestEntityTooLarge, "message_too_large", "消息不能超过 4000 个字符")
 		return
 	}
+	requestID := strings.TrimSpace(req.ClientRequestID)
+	if uuid.Validate(requestID) != nil {
+		apiError(c, http.StatusBadRequest, "invalid_request", "client_request_id 格式不正确")
+		return
+	}
 	user := currentUser(c)
 	if !h.allowOpenID(c.Request.Context(), user.ID, "web_chat") {
 		apiError(c, http.StatusTooManyRequests, "rate_limited", "too many requests")
 		return
 	}
+	conversationID := c.Param("conversation_id")
+	reservation, _, ok := h.reserveQuota(c, user, scopedQuotaRequestID(conversationID, requestID))
+	if !ok {
+		return
+	}
 	batch, err := h.Agent.SendConversationMessage(
-		c.Request.Context(), "api", user.ID, c.Param("conversation_id"), req.Content, req.ClientRequestID,
+		c.Request.Context(), "api", user.ID, conversationID, req.Content, requestID,
 	)
 	if err != nil {
+		if !h.settleAgentError(c, reservation, err) {
+			return
+		}
 		apiAgentError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"batch": batch})
+	snapshot, err := h.settleQuota(c.Request.Context(), reservation, quotaOutcome(batch))
+	if err != nil {
+		quotaUnavailable(c)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"batch": batch, "quota": snapshot})
 }
 
 func (h *Handlers) webDeleteConversationMessages(c *gin.Context) {
@@ -125,8 +143,19 @@ func (h *Handlers) webListMessages(c *gin.Context) {
 func (h *Handlers) webSendMessage(c *gin.Context) {
 	markDeprecatedConversationAlias(c)
 	var req webMessageReq
-	if c.ShouldBindJSON(&req) != nil || req.Content == "" {
+	if c.ShouldBindJSON(&req) != nil || strings.TrimSpace(req.Content) == "" {
 		apiError(c, http.StatusBadRequest, "invalid_request", "content 必填")
+		return
+	}
+	if utf8.RuneCountInString(strings.TrimSpace(req.Content)) > 4000 {
+		apiError(c, http.StatusRequestEntityTooLarge, "message_too_large", "消息不能超过 4000 个字符")
+		return
+	}
+	requestID := strings.TrimSpace(req.ClientRequestID)
+	if requestID == "" {
+		requestID = uuid.NewString()
+	} else if uuid.Validate(requestID) != nil {
+		apiError(c, http.StatusBadRequest, "invalid_request", "client_request_id 格式不正确")
 		return
 	}
 	user := currentUser(c)
@@ -134,16 +163,28 @@ func (h *Handlers) webSendMessage(c *gin.Context) {
 		apiError(c, http.StatusTooManyRequests, "rate_limited", "too many requests")
 		return
 	}
-	batch, err := h.Agent.SendConversationMessage(c.Request.Context(), "api", user.ID, conversation.DefaultConversationID, req.Content, uuid.NewString())
+	reservation, _, ok := h.reserveQuota(c, user, scopedQuotaRequestID(conversation.DefaultConversationID, requestID))
+	if !ok {
+		return
+	}
+	batch, err := h.Agent.SendConversationMessage(c.Request.Context(), "api", user.ID, conversation.DefaultConversationID, req.Content, requestID)
 	if err != nil {
+		if !h.settleAgentError(c, reservation, err) {
+			return
+		}
 		apiAgentError(c, err)
 		return
 	}
-	if batch.Status != conversation.BatchComplete || len(batch.CharacterMessages) == 0 {
+	snapshot, err := h.settleQuota(c.Request.Context(), reservation, quotaOutcome(batch))
+	if err != nil {
+		quotaUnavailable(c)
+		return
+	}
+	if len(batch.CharacterMessages) == 0 {
 		apiError(c, http.StatusBadGateway, "agent_error", "agent unavailable")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"reply": batch.CharacterMessages[0].Content})
+	c.JSON(http.StatusOK, gin.H{"reply": batch.CharacterMessages[0].Content, "quota": snapshot})
 }
 
 func (h *Handlers) webDeleteMessages(c *gin.Context) {

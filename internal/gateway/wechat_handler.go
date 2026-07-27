@@ -11,23 +11,26 @@ import (
 	"github.com/gin-gonic/gin"
 
 	authn "companion-ai/internal/auth"
-	"companion-ai/internal/webui"
+	"companion-ai/internal/quota"
 	"companion-ai/internal/wechat"
 )
 
 type Handlers struct {
-	Token   string
-	Agent   AgentCaller
-	Tokens  TokenSource
-	Pusher  Pusher
-	Log     *slog.Logger
-	Dedupe  MessageDeduper
-	Limiter RateLimiter
-	Auth    *authn.Service
+	WechatEnabled bool
+	Token         string
+	Agent         AgentCaller
+	Tokens        TokenSource
+	Pusher        Pusher
+	Log           *slog.Logger
+	Dedupe        MessageDeduper
+	Limiter       RateLimiter
+	Auth          *authn.Service
+	Quota         quota.Manager
 	// AuthenticateSession replaces the persistent auth adapter in transport-level tests.
 	// Production leaves it nil and uses Auth.CurrentUser.
 	AuthenticateSession func(context.Context, string) (authn.User, error)
 	CookieSecure        bool
+	Now                 func() time.Time
 
 	nowSync *sync.WaitGroup
 }
@@ -39,9 +42,11 @@ func (h *Handlers) RegisterRoutes(r *gin.Engine) {
 	if h.Dedupe == nil {
 		h.Dedupe = NewMsgDeduper()
 	}
-	r.GET("/wechat", h.verify)
-	r.POST("/wechat", h.receive)
-	r.StaticFS("/app", webui.FileSystem())
+	if h.WechatEnabled {
+		r.GET("/wechat", h.verify)
+		r.POST("/wechat", h.receive)
+	}
+	h.registerWebUI(r)
 	h.registerAPI(r)
 }
 

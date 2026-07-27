@@ -44,3 +44,7 @@ ERROR.md
 /.codegraph
 
 *.log
+
+# Python helper/test bytecode
+__pycache__/
+*.py[cod]

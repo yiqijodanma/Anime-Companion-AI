@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
@@ -34,6 +37,8 @@ func main() {
 		log.Error("config load failed", "err", err)
 		panic(err)
 	}
+	runCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 
 	db, err := gorm.Open(postgres.Open(cfg.PgDSN), &gorm.Config{})
 	if err != nil {
@@ -45,10 +50,7 @@ func main() {
 		log.Error("db handle failed", "err", err)
 		panic(err)
 	}
-	if err := sqlDB.Ping(); err != nil {
-		log.Error("db ping failed", "err", err)
-		panic(err)
-	}
+	defer sqlDB.Close()
 
 	repo, err := memory.NewRepo(db)
 	if err != nil {
@@ -65,7 +67,7 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	cm, err := openai.NewChatModel(context.Background(), &openai.ChatModelConfig{
+	cm, err := openai.NewChatModel(runCtx, &openai.ChatModelConfig{
 		APIKey:  cfg.DeepSeekAPIKey,
 		Model:   cfg.DeepSeekModel,
 		BaseURL: "https://api.deepseek.com",
@@ -90,12 +92,60 @@ func main() {
 	grpcServer := grpc.NewServer()
 	agentv1.RegisterAgentServiceServer(grpcServer, srv)
 	healthServer := health.NewServer()
-	healthServer.SetServingStatus("", healthv1.HealthCheckResponse_SERVING)
+	initializeAgentHealth(healthServer)
 	healthv1.RegisterHealthServer(grpcServer, healthServer)
+	checks := []dependencyCheck{
+		func(ctx context.Context) error { return sqlDB.PingContext(ctx) },
+		func(ctx context.Context) error { return redisClient.Ping(ctx).Err() },
+	}
+	checkDependencies := func() bool {
+		ctx, cancel := context.WithTimeout(runCtx, 2*time.Second)
+		defer cancel()
+		return updateAgentServingStatus(ctx, healthServer, checks...)
+	}
+	ready := checkDependencies()
+	if !ready {
+		log.Warn("agent dependencies not ready")
+	}
+	go func(previous bool) {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				current := checkDependencies()
+				if current != previous {
+					log.Info("agent readiness changed", "ready", current)
+					previous = current
+				}
+			}
+		}
+	}(ready)
 
-	log.Info("agent grpc serving", "addr", cfg.AgentGRPCAddr)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Error("serve failed", "err", err)
-		panic(err)
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- grpcServer.Serve(lis) }()
+	log.Info("agent grpc serving", "addr", cfg.AgentGRPCAddr, "ready", ready, "release_id", cfg.ReleaseID, "backend_commit", cfg.BackendCommit)
+	select {
+	case err := <-serveErr:
+		if err != nil {
+			log.Error("serve failed", "err", err)
+			panic(err)
+		}
+	case <-runCtx.Done():
+		log.Info("agent shutting down")
+		healthServer.Shutdown()
+		stopped := make(chan struct{})
+		go func() {
+			grpcServer.GracefulStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-time.After(20 * time.Second):
+			log.Warn("agent graceful shutdown timed out")
+			grpcServer.Stop()
+		}
 	}
 }

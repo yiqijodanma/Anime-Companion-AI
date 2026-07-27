@@ -46,12 +46,14 @@ $env:GATEWAY_HTTP_ADDR=":8080"
 
 - dev：`DEV_POSTGRES_PORT`、`DEV_REDIS_PORT`、`DEV_GATEWAY_HTTP_PORT`、`DEV_AGENT_GRPC_PORT`
 - pro：`PRO_POSTGRES_PORT`、`PRO_REDIS_PORT`、`PRO_GATEWAY_HTTP_PORT`、`PRO_AGENT_GRPC_PORT`
-- Gateway：`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AUTH_PEPPER`、`COOKIE_SECURE`
-- 邮件：`SMTP_HOST`、`SMTP_PORT`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`
+- Gateway：`WECHAT_ENABLED`（默认 `false`）、`WECHAT_TOKEN`、`WECHAT_APPID`、`WECHAT_APPSECRET`、`AUTH_PEPPER`、`COOKIE_SECURE`
+- 邮件：`SMTP_HOST`、`SMTP_PORT`、`SMTP_IMPLICIT_TLS`、`SMTP_USERNAME`、`SMTP_PASSWORD`、`SMTP_FROM`
 - Agent：`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`
 - PostgreSQL：`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
 
 DeepSeek OpenAI 兼容 Base URL 固定为 `https://api.deepseek.com`，模型示例为 `deepseek-v4-flash`。
+
+生产邮件使用阿里云邮件推送：`smtpdm.aliyun.com:465` 配合隐式 TLS。`SMTP_USERNAME` 必须与邮件推送控制台中已验证的发信地址一致，`SMTP_PASSWORD` 使用该发信地址单独设置的 SMTP 密码；`SMTP_FROM` 可以为同一地址增加显示名。本地 Docker 环境仍使用 Mailpit，不启用 TLS。
 
 ## 启动
 
@@ -82,17 +84,17 @@ make run-gateway-pro
 make docker
 ```
 
-日志写入项目根目录 `log/agent.log` 和 `log/gateway.log`；容器运行时也可以用 `make logs` 查看 Docker 日志。
+Gateway 和 Agent 日志写入标准输出/标准错误；容器运行时可用 `make logs` 或 `kubectl logs` 查看，不依赖容器内项目日志文件。
 
 ## 本地 smoke test
 
-`/healthz` 只检查 Gateway 到 Agent 的 gRPC 连通性。Agent 启动时要求 `DEEPSEEK_API_KEY` 非空，因此可以用非空占位值验证 `/healthz`；它不会实际请求 DeepSeek。
+`/livez` 只证明 Gateway HTTP 进程仍能响应；`/readyz` 检查 Agent、PostgreSQL、Redis 是否都可用；`/healthz` 保持兼容语义，只检查 Gateway 到 Agent 的 gRPC 连通性。Agent 启动时要求 `DEEPSEEK_API_KEY` 非空，但这些探针不会实际请求 DeepSeek。
 
 ```powershell
 curl.exe http://localhost:8080/healthz
 ```
 
-浏览器入口为 `http://localhost:8080/app/`。未登录时只显示已有账号的验证码登录；登录后左侧固定显示 SOS 团群聊和五个成员单聊。注册、验证和密码找回仍使用现有 REST 流程。
+浏览器入口为 `http://localhost:8080/`；`/app/` 仅保留兼容跳转。未登录时显示认证界面；登录后左侧固定显示 SOS 团群聊和五个成员单聊。注册、验证和密码找回继续使用现有 REST 流程。
 
 Web REST 接口必须先完成邮箱注册并取得 `HttpOnly` 会话 Cookie；前端不会再提交或保存匿名 `external_id`。本地 Mailpit 收件箱位于 `http://localhost:8025`，生产环境必须替换 `AUTH_PEPPER` 并将 `COOKIE_SECURE=true`。
 
@@ -114,10 +116,20 @@ curl.exe -b cookies.txt -X DELETE http://localhost:8080/api/v1/conversations/dir
 
 真实模型的非 CI smoke 建议各发一轮：明确只问一名成员、邀请三名成员讨论、邀请全体五人发言。人工检查参与人数是否自然、角色口吻和串行延迟；不要把随机措辞写进自动测试。
 
+## k3s 生产发布
+
+生产镜像通过 Windows PowerShell 发布脚本构建：Gateway 从 sibling React 仓库的 named build context 执行 `npm ci`，将 `dist` 覆盖进 Go embed 目录，再和 Agent、migration、backup 镜像一起以不可变 tag 推送到 ACR。k3s manifests、Secret 初始化、preflight、staging/prod 证书切换、回滚、冒烟与 OSS 恢复演练命令见 [deploy/README.md](deploy/README.md)。
+
+本地只渲染并校验两套 manifests：
+
+```powershell
+make k3s-manifests
+```
+
 ## 微信测试号配置
 
 1. 打开微信公众平台接口测试号页面，获取 appID/appSecret。
 2. 接口 URL 填 `http://<public-host>/wechat`，Token 填 `WECHAT_TOKEN` 环境变量对应的实际值。
 3. 扫码关注测试号后即可私聊。
 
-真实 `/wechat` 回调需要公网 URL、微信测试号凭据和微信可访问的 Gateway。仅本地启动服务时，请使用上面的 REST smoke test。
+真实 `/wechat` 回调需要显式设置 `WECHAT_ENABLED=true`、公网 URL、微信测试号凭据和微信可访问的 Gateway。默认 Web-only 模式不会要求微信凭据、注册回调或启动微信定时任务。仅本地启动服务时，请使用上面的 REST smoke test。

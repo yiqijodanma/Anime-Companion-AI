@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.7
+
+FROM alpine:3.21 AS ossutil
+
+ADD --checksum=sha256:3ae4d9fc85a7a6e9f5654d1599766f1a3a42a3692870887b5ae9338d582ef65a \
+    https://gosspublic.alicdn.com/ossutil/v2/2.3.0/ossutil-2.3.0-linux-amd64.zip \
+    /tmp/ossutil.zip
+RUN unzip -q /tmp/ossutil.zip -d /tmp/ossutil \
+    && cp /tmp/ossutil/ossutil-2.3.0-linux-amd64/ossutil /usr/local/bin/ossutil \
+    && chmod 0755 /usr/local/bin/ossutil
+
+FROM postgres:16-alpine
+
+ARG BACKEND_COMMIT=unknown
+ARG BUILD_TIMESTAMP=unknown
+
+LABEL org.opencontainers.image.title="Anime Companion AI PostgreSQL Backup" \
+      org.opencontainers.image.revision=$BACKEND_COMMIT \
+      org.opencontainers.image.created=$BUILD_TIMESTAMP \
+      io.animecompanion.backend.revision=$BACKEND_COMMIT \
+      io.animecompanion.ossutil.version="2.3.0"
+
+RUN apk add --no-cache ca-certificates python3 tzdata
+COPY --from=ossutil /usr/local/bin/ossutil /usr/local/bin/ossutil
+COPY scripts/backup/backup_to_oss.py /usr/local/bin/backup-to-oss
+
+USER 65532:65532
+ENTRYPOINT ["python3", "/usr/local/bin/backup-to-oss"]

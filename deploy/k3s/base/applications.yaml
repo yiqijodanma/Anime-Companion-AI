@@ -1,0 +1,320 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  namespace: anime-companion
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: anime-companion
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: agent
+  ports:
+    - name: grpc
+      port: 9090
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  namespace: anime-companion
+  labels:
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/part-of: anime-companion
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent
+        app.kubernetes.io/component: agent
+        app.kubernetes.io/part-of: anime-companion
+    spec:
+      serviceAccountName: anime-companion-app
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: anime-companion-agent:release-placeholder
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 9090
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: TZ
+            - name: RELEASE_ID
+              value: "release-id-placeholder"
+            - name: BACKEND_COMMIT
+              value: "backend-commit-placeholder"
+            - name: FRONTEND_COMMIT
+              value: "frontend-commit-placeholder"
+            - name: AGENT_GRPC_ADDR
+              value: :9090
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: REDIS_ADDR
+            - name: DEEPSEEK_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: DEEPSEEK_MODEL
+            - name: PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: PG_DSN
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: DEEPSEEK_API_KEY
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            grpc:
+              port: 9090
+              service: liveness
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            grpc:
+              port: 9090
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            grpc:
+              port: 9090
+              service: liveness
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: anime-companion
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: anime-companion
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: anime-companion
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: anime-companion
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: anime-companion
+    spec:
+      serviceAccountName: anime-companion-app
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: anime-companion-gateway:release-placeholder
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: TZ
+            - name: RELEASE_ID
+              value: "release-id-placeholder"
+            - name: BACKEND_COMMIT
+              value: "backend-commit-placeholder"
+            - name: FRONTEND_COMMIT
+              value: "frontend-commit-placeholder"
+            - name: AGENT_GRPC_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: AGENT_GRPC_ADDR
+            - name: GATEWAY_HTTP_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: GATEWAY_HTTP_ADDR
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: REDIS_ADDR
+            - name: SMTP_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: SMTP_PORT
+            - name: SMTP_IMPLICIT_TLS
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: SMTP_IMPLICIT_TLS
+            - name: SMTP_FROM
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: SMTP_FROM
+            - name: COOKIE_SECURE
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: COOKIE_SECURE
+            - name: WECHAT_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: WECHAT_ENABLED
+            - name: DAILY_QUOTA_LIMIT
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: DAILY_QUOTA_LIMIT
+            - name: QUOTA_TIME_ZONE
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: QUOTA_TIME_ZONE
+            - name: PUBLIC_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: PUBLIC_ORIGIN
+            - name: PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: PG_DSN
+            - name: AUTH_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: AUTH_PEPPER
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: SMTP_USERNAME
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: anime-companion-secrets
+                  key: SMTP_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 150m
+              memory: 128Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
