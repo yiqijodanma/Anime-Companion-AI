@@ -189,6 +189,16 @@ try {
 
     $releaseText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Release-K3s.ps1'))
     $rollbackText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Rollback-K3s.ps1'))
+    $smokeText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Smoke-K3s.ps1'))
+    foreach ($redirectProbeMarker in @(
+        '-MaximumRedirection 0',
+        '-ErrorAction Ignore',
+        'if ($null -eq $redirect)'
+    )) {
+        if (-not $smokeText.Contains($redirectProbeMarker)) {
+            throw "Public smoke redirect probe is missing the PowerShell 7.6 compatibility guard '$redirectProbeMarker'."
+        }
+    }
     if ($rollbackText.Contains("'patch', 'configmap', 'anime-companion-config'")) {
         throw 'Rollback must not update shared release identity before application rollout succeeds.'
     }

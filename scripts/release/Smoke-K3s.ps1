@@ -17,7 +17,10 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 $httpOrigin = "http://$Domain"
 $httpsOrigin = "https://$Domain"
 
-$redirect = Invoke-WebRequest -Uri "$httpOrigin/" -MaximumRedirection 0 -SkipHttpErrorCheck
+$redirect = Invoke-WebRequest -Uri "$httpOrigin/" -MaximumRedirection 0 -SkipHttpErrorCheck -ErrorAction Ignore
+if ($null -eq $redirect) {
+    throw 'HTTP origin did not return a response.'
+}
 if ([int]$redirect.StatusCode -notin @(301, 302, 307, 308)) {
     throw "HTTP origin returned $([int]$redirect.StatusCode) instead of a redirect."
 }
