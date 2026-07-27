@@ -26,6 +26,40 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -ec
+            - |
+              until pg_isready -h postgres -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"; do
+                sleep 2
+              done
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: anime-companion-config
+                  key: POSTGRES_USER
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       containers:
         - name: migrate
           image: anime-companion-migrate:release-placeholder

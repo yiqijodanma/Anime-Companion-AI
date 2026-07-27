@@ -108,6 +108,18 @@ try {
     if (-not $preflightText.Contains("-ExpectedValues @{ OSS_PREFIX = '$canonicalOssPrefix' }")) {
         throw 'Preflight must reject an OSS Secret whose prefix does not match the lifecycle rule.'
     }
+    foreach ($databaseJobFile in @('migration-job.yaml', 'seed-job.yaml')) {
+        $databaseJobText = [IO.File]::ReadAllText((Join-Path $repoRoot "deploy\k3s\base\$databaseJobFile"))
+        foreach ($databaseReadinessMarker in @(
+            'name: wait-for-postgres',
+            'until pg_isready -h postgres',
+            'sleep 2'
+        )) {
+            if (-not $databaseJobText.Contains($databaseReadinessMarker)) {
+                throw "Database Job '$databaseJobFile' is missing the PostgreSQL readiness guard '$databaseReadinessMarker'."
+            }
+        }
+    }
     $restoreDrillText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Restore-Drill.ps1'))
     if ($restoreDrillText.Contains('[switch]$DropAfterVerification') -or
         -not $restoreDrillText.Contains('[switch]$KeepAfterVerification')) {
