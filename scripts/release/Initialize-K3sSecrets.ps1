@@ -55,7 +55,7 @@ $authPepperBytes = [byte[]]::new(48)
 $authPepper = [Convert]::ToBase64String($authPepperBytes)
 $adminEmail = (Read-Host 'Administrator email').Trim()
 $adminPassword = Read-HiddenValue 'Administrator password'
-if ($adminPassword.Length -lt 12 -or $adminPassword.Length -gt 128) { throw 'Administrator password must contain 12 to 128 characters.' }
+if ($adminPassword.Length -lt 8 -or $adminPassword.Length -gt 128) { throw 'Administrator password must contain 12 to 128 characters.' }
 if ($adminPassword -eq $postgresPassword) { throw 'Administrator and PostgreSQL passwords must be different.' }
 $deepSeekKey = Read-HiddenValue 'DeepSeek API key'
 $smtpUsername = (Read-Host 'Alibaba Cloud DirectMail sender address (also SMTP username)').Trim()
