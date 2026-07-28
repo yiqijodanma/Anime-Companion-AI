@@ -16,6 +16,34 @@ SPEC.loader.exec_module(backup)
 
 
 class BackupToOssTests(unittest.TestCase):
+    def test_wait_for_postgres_retries_until_ready(self) -> None:
+        environment = {
+            "PGHOST": "postgres",
+            "PGPORT": "5432",
+            "PGUSER": "companion",
+            "PGDATABASE": "companion",
+            "PGPASSWORD": "test-password",
+        }
+        attempts = [
+            mock.Mock(returncode=2),
+            mock.Mock(returncode=0),
+        ]
+
+        with mock.patch.dict(os.environ, environment, clear=True), mock.patch.object(
+            backup.subprocess, "run", side_effect=attempts
+        ) as run, mock.patch.object(backup.time, "sleep") as sleep:
+            backup.wait_for_postgres(max_attempts=3, delay_seconds=0.01)
+
+        self.assertEqual(2, run.call_count)
+        sleep.assert_called_once_with(0.01)
+        command = run.call_args_list[0].args[0]
+        self.assertEqual("pg_isready", command[0])
+        self.assertIn("--host=postgres", command)
+        self.assertIn("--port=5432", command)
+        self.assertIn("--username=companion", command)
+        self.assertIn("--dbname=companion", command)
+        self.assertFalse(run.call_args_list[0].kwargs["check"])
+
     def test_rejects_url_scheme_in_endpoint(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "hostname without a URL scheme"):
             backup.validate_configuration(

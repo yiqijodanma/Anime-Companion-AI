@@ -10,6 +10,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 
 
@@ -31,6 +32,37 @@ def validate_configuration(bucket: str, endpoint: str, region: str, prefix: str)
         r"[A-Za-z0-9._/-]*", prefix
     ):
         raise RuntimeError("OSS_PREFIX contains an unsafe path")
+
+
+def wait_for_postgres(max_attempts: int = 30, delay_seconds: float = 2.0) -> None:
+    env = os.environ.copy()
+    env["PGPASSWORD"] = required("PGPASSWORD")
+    command = [
+        "pg_isready",
+        f"--host={required('PGHOST')}",
+        f"--port={os.environ.get('PGPORT', '5432')}",
+        f"--username={required('PGUSER')}",
+        f"--dbname={required('PGDATABASE')}",
+        "--timeout=2",
+        "--quiet",
+    ]
+    for attempt in range(1, max_attempts + 1):
+        result = subprocess.run(
+            command,
+            env=env,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            return
+        if attempt < max_attempts:
+            print(
+                f"PostgreSQL is not ready; retrying ({attempt}/{max_attempts})",
+                flush=True,
+            )
+            time.sleep(delay_seconds)
+    raise RuntimeError(f"PostgreSQL did not become ready after {max_attempts} attempts")
 
 
 def create_dump(destination: pathlib.Path) -> None:
@@ -113,6 +145,8 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="anime-companion-backup-") as workdir:
         dump_path = pathlib.Path(workdir) / "companion.dump"
+        print("Waiting for PostgreSQL", flush=True)
+        wait_for_postgres()
         print("Creating PostgreSQL logical backup", flush=True)
         create_dump(dump_path)
         print(f"Uploading encrypted OSS object {object_key}", flush=True)
