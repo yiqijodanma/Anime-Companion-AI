@@ -2,6 +2,8 @@
 
 陪伴型 SOS 团 AI 后端。Gateway 提供 Web 与微信接入，Agent 负责编排多角色对话；PostgreSQL 保存长期记忆，Redis 保存短期上下文与缓存。
 
+前端仓库：[Anime-Companion-ai-sos-chat-fronted](https://github.com/yiqijodanma/Anime-Companion-ai-sos-chat-fronted)。
+
 ![alt text](image.png)
 
 ## 准备与配置
