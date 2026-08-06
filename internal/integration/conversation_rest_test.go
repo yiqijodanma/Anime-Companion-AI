@@ -741,6 +741,7 @@ func newConversationRESTFixture(t *testing.T, model orchestration.Model) convers
 	redisClient := redis.NewClient(&redis.Options{Addr: mini.Addr()})
 	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+	mini.SetTime(now)
 	store := conversation.NewRedisStore(redisClient, "test:", 72*time.Hour)
 	store.SetClock(func() time.Time { return now })
 	app := orchestration.NewApplication(store, nil, model)

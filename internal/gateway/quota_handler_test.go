@@ -29,6 +29,7 @@ func newQuotaHandler(t *testing.T, limit int, agent *fakeAgent) (*Handlers, *red
 	manager, err := quota.NewRedis(client, "test:http-quota:", limit)
 	require.NoError(t, err)
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+	server.SetTime(now)
 	return &Handlers{
 		Agent: agent,
 		Quota: manager,

@@ -24,7 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("access postgres connection: %v", err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	admin, err := auth.EnsureAdmin(context.Background(), db, email, password)
 	if err != nil {
