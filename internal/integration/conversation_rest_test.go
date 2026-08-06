@@ -31,7 +31,6 @@ import (
 	"companion-ai/internal/orchestration"
 	"companion-ai/internal/persona"
 	"companion-ai/internal/quota"
-	"companion-ai/internal/testredis"
 )
 
 type listedSpace struct {
@@ -742,10 +741,11 @@ func newConversationRESTFixture(t *testing.T, model orchestration.Model) convers
 	redisClient := redis.NewClient(&redis.Options{Addr: mini.Addr()})
 	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+	mini.SetTime(now)
 	store := conversation.NewRedisStore(redisClient, "test:", 72*time.Hour)
 	store.SetClock(func() time.Time { return now })
 	app := orchestration.NewApplication(store, nil, model)
-	quotaManager, err := quota.NewRedis(testredis.Open(t, 3), "test:quota:", 20)
+	quotaManager, err := quota.NewRedis(redisClient, "test:quota:", 20)
 	require.NoError(t, err)
 
 	lis := bufconn.Listen(1024 * 1024)

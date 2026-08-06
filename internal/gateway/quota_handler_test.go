@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -18,15 +19,17 @@ import (
 	authn "companion-ai/internal/auth"
 	"companion-ai/internal/conversation"
 	"companion-ai/internal/quota"
-	"companion-ai/internal/testredis"
 )
 
 func newQuotaHandler(t *testing.T, limit int, agent *fakeAgent) (*Handlers, *redis.Client) {
 	t.Helper()
-	client := testredis.Open(t, 2)
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
 	manager, err := quota.NewRedis(client, "test:http-quota:", limit)
 	require.NoError(t, err)
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
+	server.SetTime(now)
 	return &Handlers{
 		Agent: agent,
 		Quota: manager,
