@@ -3,8 +3,8 @@ param(
     [ValidateSet('staging', 'production')]
     [string]$Environment = 'staging',
     [string]$KubeContext,
-    [string]$Domain = 'animecompanion.icu',
-    [string]$ExpectedPublicIP = '47.79.255.109',
+    [Parameter(Mandatory)][string]$Domain,
+    [Parameter(Mandatory)][string]$ExpectedPublicIP,
     [string]$RegistryEndpoint,
     [string]$OssEndpoint,
     [string]$SshTarget,

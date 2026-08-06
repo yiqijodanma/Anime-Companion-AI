@@ -120,6 +120,17 @@ curl.exe -b cookies.txt -X DELETE http://localhost:8080/api/v1/conversations/dir
 
 生产镜像通过 Windows PowerShell 发布脚本构建：Gateway 从 sibling React 仓库的 named build context 执行 `npm ci`，将 `dist` 覆盖进 Go embed 目录，再和 Agent、migration、backup 镜像一起以不可变 tag 推送到 ACR。k3s manifests、Secret 初始化、preflight、staging/prod 证书切换、回滚、冒烟与 OSS 恢复演练命令见 [deploy/README.md](deploy/README.md)。
 
+### 发布前填写的公网配置
+
+`scripts/release` 不包含任何默认的生产域名或服务器公网 IP。开发者必须在每次运行下列脚本时自行填写真实值；不要把真实值重新写回脚本或提交到仓库：
+
+- `Preflight-K3s.ps1`：`-Domain '<your-public-domain>'`、`-ExpectedPublicIP '<your-server-public-ip>'`
+- `Smoke-K3s.ps1`：`-Domain '<your-public-domain>'`
+- `Release-K3s.ps1`：`-Domain '<your-public-domain>'`、`-ExpectedPublicIP '<your-server-public-ip>'`
+- `Rollback-K3s.ps1`：`-Domain '<your-public-domain>'`（若未使用 `-SkipSmoke`）
+
+同时确认 `deploy/k3s/overlays/{staging,production}/ingress.yaml` 的 host/TLS 域名，以及 `deploy/k3s/base/platform.yaml` 的 `PUBLIC_ORIGIN` 已替换为同一公网域名。这些部署清单不由发布脚本自动改写。
+
 本地只渲染并校验两套 manifests：
 
 ```powershell

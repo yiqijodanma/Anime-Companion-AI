@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Domain = 'animecompanion.icu',
+    [Parameter(Mandatory)][string]$Domain,
     [switch]$AuthenticatedSmoke,
     [Security.SecureString]$SessionCookie,
     [switch]$RealChat,

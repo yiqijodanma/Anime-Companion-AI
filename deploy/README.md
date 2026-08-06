@@ -1,12 +1,12 @@
 # Anime Companion AI 单节点 k3s 运维手册
 
-此目录是 `animecompanion.icu` 的声明式生产部署。发布脚本固定构建 `linux/amd64`，PostgreSQL/Redis 运行时镜像使用不可变 digest，先完成数据服务就绪，再依次运行 migration、幂等管理员初始化，最后滚动 Agent/Gateway。所有 Service 都是 ClusterIP；只有 k3s 自带 Traefik 使用公网 80/443。
+此目录是公网部署的声明式配置。发布脚本固定构建 `linux/amd64`，PostgreSQL/Redis 运行时镜像使用不可变 digest，先完成数据服务就绪，再依次运行 migration、幂等管理员初始化，最后滚动 Agent/Gateway。所有 Service 都是 ClusterIP；只有 k3s 自带 Traefik 使用公网 80/443。
 
 ## 1. 外部前置资源
 
 上线前由运营方在控制台完成：
 
-- 阿里云域名状态为“正常”，apex A 记录指向 `47.79.255.109`。
+- 将域名状态设为“正常”，并使 apex A 记录指向目标服务器公网 IP。
 - ECS 安全组只公开 22（按来源限制）、80、443；5432、6379、9090 不公开。
 - k3s 已启用 Traefik 和 `local-path`。目标服务器实测为 k3s/Kubernetes `v1.36.2+k3s1`，cert-manager 固定使用已测试支持 Kubernetes 1.36 的 `v1.21.0`（或经审阅的更新 1.21 patch），不能使用只支持到 Kubernetes 1.35 的 1.20。
 - ACR 私有 namespace 及 Gateway、Agent、migration、backup 四个仓库已创建，并在服务能力允许时启用 tag 不可变策略；发布脚本也会拒绝覆盖已存在的 tag。
@@ -47,7 +47,7 @@ pwsh -NoProfile -File scripts/release/Test-Manifests.ps1
 pwsh -NoProfile -File scripts/release/Test-Manifests.ps1 -Environment staging -KubeContext <context> -ServerValidation
 ```
 
-preflight 会检查单节点 Linux/AMD64、Kubernetes 版本、Traefik 80/443、local-path、cert-manager/Traefik CRD、至少 35 GiB allocatable storage、Secret key、公网 DNS、ACR/OSS/阿里云邮件推送/DeepSeek 连通性，以及 PostgreSQL/Redis 公网端口不可达。提供 `-SshTarget user@47.79.255.109` 时还会检查 k3s 磁盘实际剩余空间和主机 80/443 冲突。
+preflight 会检查单节点 Linux/AMD64、Kubernetes 版本、Traefik 80/443、local-path、cert-manager/Traefik CRD、至少 35 GiB allocatable storage、Secret key、公网 DNS、ACR/OSS/阿里云邮件推送/DeepSeek 连通性，以及 PostgreSQL/Redis 公网端口不可达。提供 `-SshTarget <user>@<server-public-ip>` 时还会检查 k3s 磁盘实际剩余空间和主机 80/443 冲突。
 
 ## 4. 先 staging、后 production
 
@@ -61,9 +61,11 @@ pwsh -NoProfile -File scripts/release/Release-K3s.ps1 `
   -AcmeEmail '<acme-contact-email>' `
   -SmtpFrom '<verified Alibaba Cloud DirectMail sender>' `
   -OssEndpoint '<region>.aliyuncs.com' `
+  -Domain '<your-public-domain>' `
+  -ExpectedPublicIP '<your-server-public-ip>' `
   -Environment staging `
   -KubeContext <context> `
-  -SshTarget '<user>@47.79.255.109' `
+  -SshTarget '<user>@<server-public-ip>' `
   -DomainStatusNormal
 ```
 
@@ -77,9 +79,11 @@ pwsh -NoProfile -File scripts/release/Release-K3s.ps1 `
   -AcmeEmail '<acme-contact-email>' `
   -SmtpFrom '<verified Alibaba Cloud DirectMail sender>' `
   -OssEndpoint '<region>.aliyuncs.com' `
+  -Domain '<your-public-domain>' `
+  -ExpectedPublicIP '<your-server-public-ip>' `
   -Environment production `
   -KubeContext <context> `
-  -SshTarget '<user>@47.79.255.109' `
+  -SshTarget '<user>@<server-public-ip>' `
   -DomainStatusNormal `
   -ConfirmStagingCertificateValidated
 ```
@@ -93,7 +97,7 @@ pwsh -NoProfile -File scripts/release/Release-K3s.ps1 `
 公开只读冒烟：
 
 ```powershell
-pwsh -NoProfile -File scripts/release/Smoke-K3s.ps1
+pwsh -NoProfile -File scripts/release/Smoke-K3s.ps1 -Domain '<your-public-domain>'
 ```
 
 仅在 Let’s Encrypt staging 证书验证时添加 `-AllowUntrustedTls`；production 冒烟绝不能使用该开关，否则无法验证真实证书链。
@@ -101,7 +105,7 @@ pwsh -NoProfile -File scripts/release/Smoke-K3s.ps1
 带临时 `sos_session` 的认证冒烟会隐藏输入；`-RealChat` 会真实调用 DeepSeek 并消耗一次额度：
 
 ```powershell
-pwsh -NoProfile -File scripts/release/Smoke-K3s.ps1 -AuthenticatedSmoke -RealChat
+pwsh -NoProfile -File scripts/release/Smoke-K3s.ps1 -Domain '<your-public-domain>' -AuthenticatedSmoke -RealChat
 ```
 
 仍需人工完成注册图形验证码、阿里云邮件推送注册邮件和密码重置邮件、Secure/HttpOnly/SameSite Cookie、普通用户剩余额度、管理员无限、重启后数据持久性检查。常用状态命令：
@@ -159,6 +163,7 @@ kubectl -n anime-companion get configmap anime-companion-release -o jsonpath='{.
 pwsh -NoProfile -File scripts/release/Rollback-K3s.ps1 `
   -GatewayImage '<acr>/gateway:<previous-tag>' `
   -AgentImage '<acr>/agent:<previous-tag>' `
+  -Domain '<your-public-domain>' `
   -KubeContext <context>
 ```
 

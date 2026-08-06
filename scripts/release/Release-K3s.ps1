@@ -4,6 +4,8 @@ param(
     [Parameter(Mandatory)][string]$AcmeEmail,
     [Parameter(Mandatory)][string]$SmtpFrom,
     [Parameter(Mandatory)][string]$OssEndpoint,
+    [Parameter(Mandatory)][string]$Domain,
+    [Parameter(Mandatory)][string]$ExpectedPublicIP,
     [ValidateSet('staging', 'production')]
     [string]$Environment = 'staging',
     [string]$ReleaseTag,
@@ -71,6 +73,8 @@ foreach ($image in $images.Values) { Assert-ImmutableImageReference $image }
 $preflight = @{
     Environment = $Environment
     KubeContext = $KubeContext
+    Domain = $Domain
+    ExpectedPublicIP = $ExpectedPublicIP
     RegistryEndpoint = $Registry.Split('/')[0]
     OssEndpoint = $OssEndpoint
     SshTarget = $SshTarget
@@ -238,7 +242,7 @@ try {
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('apply', '-f', $releaseMetadataPath)
 
     if (-not $SkipSmoke -and -not $SkipIngress) {
-        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1') -AllowUntrustedTls:($Environment -eq 'staging')
+        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1') -Domain $Domain -AllowUntrustedTls:($Environment -eq 'staging')
     }
 }
 finally {

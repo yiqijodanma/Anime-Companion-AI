@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)][string]$GatewayImage,
     [Parameter(Mandatory)][string]$AgentImage,
+    [Parameter(Mandatory)][string]$Domain,
     [string]$ReleaseTag,
     [string]$BackendCommit,
     [string]$FrontendCommit,
@@ -104,7 +105,7 @@ try {
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('apply', '-f', $metadataPath)
 
     if (-not $SkipSmoke) {
-        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1')
+        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1') -Domain $Domain
     }
 }
 finally {
