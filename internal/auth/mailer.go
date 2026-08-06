@@ -147,7 +147,7 @@ func (m SMTPMailer) sendMailImplicitTLS(ctx context.Context, auth smtp.Auth, fro
 	if err != nil {
 		return err
 	}
-	defer rawConn.Close()
+	defer func() { _ = rawConn.Close() }()
 
 	tlsConfig := m.tlsConfig
 	if tlsConfig == nil {
@@ -183,7 +183,7 @@ func (m SMTPMailer) sendMailImplicitTLS(ctx context.Context, auth smtp.Auth, fro
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	if auth != nil {
 		if err := client.Auth(auth); err != nil {
 			return err

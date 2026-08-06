@@ -70,7 +70,7 @@ func startSMTPCaptureServer(t *testing.T, serverTLSConfig *tls.Config) (string, 
 		if acceptErr != nil {
 			return
 		}
-		var conn net.Conn = rawConn
+		conn := rawConn
 		if serverTLSConfig != nil {
 			tlsConn := tls.Server(rawConn, serverTLSConfig)
 			if handshakeErr := tlsConn.Handshake(); handshakeErr != nil {
@@ -79,7 +79,7 @@ func startSMTPCaptureServer(t *testing.T, serverTLSConfig *tls.Config) (string, 
 			}
 			conn = tlsConn
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 		reply := func(value string) { _, _ = rw.WriteString(value); _ = rw.Flush() }
 		reply("220 localhost ESMTP\r\n")

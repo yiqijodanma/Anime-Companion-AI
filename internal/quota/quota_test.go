@@ -10,19 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+
+	"companion-ai/internal/testredis"
 )
 
-func newTestManager(t *testing.T, limit int) (*miniredis.Miniredis, *Redis) {
+func newTestManager(t *testing.T, limit int) *Redis {
 	t.Helper()
-	server := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	client := testredis.Open(t, 1)
 	manager, err := NewRedis(client, "test:quota:", limit)
 	require.NoError(t, err)
-	return server, manager
+	return manager
 }
 
 func TestSnapshotJSONContract(t *testing.T) {
@@ -37,7 +36,7 @@ func TestSnapshotJSONContract(t *testing.T) {
 }
 
 func TestQuotaRevisionAdvancesOnlyWhenLedgerChanges(t *testing.T) {
-	_, manager := newTestManager(t, 2)
+	manager := newTestManager(t, 2)
 	ctx := context.Background()
 	subject := Subject{UserID: "revision-user"}
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
@@ -68,7 +67,7 @@ func TestQuotaRevisionAdvancesOnlyWhenLedgerChanges(t *testing.T) {
 }
 
 func TestRedisReservationSettlementAndRetry(t *testing.T) {
-	_, manager := newTestManager(t, 2)
+	manager := newTestManager(t, 2)
 	ctx := context.Background()
 	subject := Subject{UserID: "user-1"}
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
@@ -117,7 +116,7 @@ func TestRedisReservationSettlementAndRetry(t *testing.T) {
 }
 
 func TestPendingReservationKeepsCapacityUntilRetryResolves(t *testing.T) {
-	_, manager := newTestManager(t, 1)
+	manager := newTestManager(t, 1)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
 	subject := Subject{UserID: "user-pending"}
@@ -141,7 +140,7 @@ func TestPendingReservationKeepsCapacityUntilRetryResolves(t *testing.T) {
 }
 
 func TestConcurrentReservationsRespectCeiling(t *testing.T) {
-	_, manager := newTestManager(t, 20)
+	manager := newTestManager(t, 20)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
 	subject := Subject{UserID: "parallel-user"}
@@ -172,7 +171,7 @@ func TestConcurrentReservationsRespectCeiling(t *testing.T) {
 }
 
 func TestQuotaDayResetsAtBeijingMidnight(t *testing.T) {
-	_, manager := newTestManager(t, 20)
+	manager := newTestManager(t, 20)
 	ctx := context.Background()
 	subject := Subject{UserID: "midnight-user"}
 	before := time.Date(2026, 7, 23, 15, 59, 0, 0, time.UTC)
@@ -191,7 +190,7 @@ func TestQuotaDayResetsAtBeijingMidnight(t *testing.T) {
 }
 
 func TestSettlementCrossingMidnightReturnsCurrentDaySnapshot(t *testing.T) {
-	_, manager := newTestManager(t, 20)
+	manager := newTestManager(t, 20)
 	ctx := context.Background()
 	subject := Subject{UserID: "long-request-user"}
 	before := time.Date(2026, 7, 23, 15, 59, 50, 0, time.UTC)
@@ -211,7 +210,7 @@ func TestSettlementCrossingMidnightReturnsCurrentDaySnapshot(t *testing.T) {
 }
 
 func TestSameRequestRetryUsesImmediatelyPreviousQuotaDayLedger(t *testing.T) {
-	_, manager := newTestManager(t, 20)
+	manager := newTestManager(t, 20)
 	ctx := context.Background()
 	subject := Subject{UserID: "midnight-retry-ledger"}
 	before := time.Date(2026, 7, 23, 15, 59, 50, 0, time.UTC)

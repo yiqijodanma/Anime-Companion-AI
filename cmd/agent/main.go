@@ -50,7 +50,7 @@ func main() {
 		log.Error("db handle failed", "err", err)
 		panic(err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 
 	repo, err := memory.NewRepo(db)
 	if err != nil {
@@ -65,7 +65,7 @@ func main() {
 		WriteTimeout: 500 * time.Millisecond,
 		MaxRetries:   -1,
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 
 	cm, err := openai.NewChatModel(runCtx, &openai.ChatModelConfig{
 		APIKey:  cfg.DeepSeekAPIKey,

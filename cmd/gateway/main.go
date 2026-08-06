@@ -44,7 +44,7 @@ func main() {
 		log.Error("grpc client failed", "err", err)
 		panic(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:         cfg.RedisAddr,
@@ -53,7 +53,7 @@ func main() {
 		WriteTimeout: 500 * time.Millisecond,
 		MaxRetries:   -1,
 	})
-	defer redisClient.Close()
+	defer func() { _ = redisClient.Close() }()
 	db, err := gorm.Open(postgres.Open(cfg.PgDSN), &gorm.Config{TranslateError: true})
 	if err != nil {
 		log.Error("postgres client failed", "err", err)
@@ -64,7 +64,7 @@ func main() {
 		log.Error("postgres handle failed", "err", err)
 		panic(err)
 	}
-	defer sqlDB.Close()
+	defer func() { _ = sqlDB.Close() }()
 	authService, err := authn.NewService(db, redisClient, authn.SMTPMailer{
 		Addr:        fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
 		Host:        cfg.SMTPHost,

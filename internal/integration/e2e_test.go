@@ -56,7 +56,7 @@ func TestEndToEndReplyThroughGRPC(t *testing.T) {
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := gateway.NewAgentClient(conn)
 	reply, err := client.Reply(context.Background(), "wechat", "u1", "你好")
