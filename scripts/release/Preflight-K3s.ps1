@@ -86,8 +86,8 @@ if ($node.status.nodeInfo.architecture -ne 'amd64' -or $node.status.nodeInfo.ope
     throw "Release images target linux/amd64, but the node reports $($node.status.nodeInfo.operatingSystem)/$($node.status.nodeInfo.architecture)."
 }
 $ephemeralBytes = Convert-KubernetesQuantityToBytes ([string]$node.status.allocatable.'ephemeral-storage')
-if ($ephemeralBytes -lt 35GB) {
-    throw 'Node allocatable ephemeral storage is below the 35 GiB deployment floor.'
+if ($ephemeralBytes -lt 15GB) {
+    throw 'Node allocatable ephemeral storage is below the 15 GiB deployment floor.'
 }
 
 Invoke-Kubectl -Context $KubeContext -ArgumentList @('-n', 'kube-system', 'get', 'deployment', 'traefik', '-o', 'name') | Out-Null
@@ -121,8 +121,8 @@ if ($SshTarget) {
     $diskOutput = Invoke-NativeCommand -FilePath 'ssh' -ArgumentList @($SshTarget, 'df -Pk /var/lib/rancher/k3s') -CaptureOutput
     $diskLine = @($diskOutput -split "`r?`n" | Where-Object { $_.Trim() })[-1]
     $diskFields = @($diskLine -split '\s+' | Where-Object { $_ })
-    if ($diskFields.Count -lt 6 -or ([int64]$diskFields[3] * 1KB) -lt 35GB) {
-        throw 'The k3s data filesystem has less than 35 GiB free.'
+    if ($diskFields.Count -lt 6 -or ([int64]$diskFields[3] * 1KB) -lt 15GB) {
+        throw 'The k3s data filesystem has less than 15 GiB free.'
     }
     $listeners = Invoke-NativeCommand -FilePath 'ssh' -ArgumentList @($SshTarget, "sudo -n ss -H -ltnp '( sport = :80 or sport = :443 )'") -CaptureOutput
     $unexpected = @($listeners -split "`r?`n" | Where-Object { $_ -and $_ -notmatch '(?i)k3s|traefik|svclb' })

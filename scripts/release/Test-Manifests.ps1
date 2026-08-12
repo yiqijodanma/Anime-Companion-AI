@@ -47,7 +47,10 @@ try {
         if ($rendered -match '(?im)^\s*privileged:\s*true\s*$') {
             throw "Overlay '$name' contains a privileged container."
         }
-    foreach ($requiredText in @('storage: 20Gi', 'storage: 5Gi', 'timeZone: Asia/Shanghai', 'kind: NetworkPolicy', 'kind: ClusterIssuer')) {
+    foreach ($requiredText in @(
+        'storage: 8Gi', 'storage: 2Gi', 'ephemeral-storage: 8Gi', 'sizeLimit: 8Gi',
+        'timeZone: Asia/Shanghai', 'kind: NetworkPolicy', 'kind: ClusterIssuer'
+    )) {
             if (-not $rendered.Contains($requiredText)) {
                 throw "Overlay '$name' is missing required rendered content '$requiredText'."
             }
@@ -149,7 +152,7 @@ try {
         'allow-agent-egress', 'allow-jobs-egress', 'allow-backup-egress',
         'allow-acme-solver-from-traefik'
     )) {
-        if ($networkPolicyText -notmatch "(?m)^  name: $([regex]::Escape($policyName))$") {
+        if ($networkPolicyText -notmatch "(?m)^  name: $([regex]::Escape($policyName))\r?$") {
             throw "Required NetworkPolicy '$policyName' is missing."
         }
     }
