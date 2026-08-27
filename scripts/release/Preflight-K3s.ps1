@@ -44,6 +44,40 @@ function Test-TcpPort {
     finally { $client.Dispose() }
 }
 
+function Resolve-DnsIPv4Address {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Resolver
+    )
+
+    if (Get-Command 'Resolve-DnsName' -ErrorAction SilentlyContinue) {
+        $candidates = @(
+            Resolve-DnsName -Name $Name -Type A -Server $Resolver -ErrorAction Stop |
+                Where-Object Type -eq 'A' |
+                ForEach-Object IPAddress
+        )
+    }
+    else {
+        Assert-CommandAvailable 'dig'
+        $output = Invoke-NativeCommand -FilePath 'dig' -ArgumentList @('+short', 'A', $Name, "@$Resolver") -CaptureOutput
+        $candidates = @($output -split "`r?`n" | Where-Object { $_ })
+    }
+
+    if ($candidates.Count -eq 0) {
+        throw "Resolver $Resolver returned no A records for $Name."
+    }
+    $addresses = foreach ($candidate in $candidates) {
+        $parsedAddress = $null
+        if (-not [Net.IPAddress]::TryParse([string]$candidate, [ref]$parsedAddress) -or
+            $parsedAddress.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
+            $parsedAddress.ToString() -cne [string]$candidate) {
+            throw "Resolver $Resolver returned a non-canonical IPv4 answer for $Name."
+        }
+        $parsedAddress.ToString()
+    }
+    return @($addresses | Select-Object -Unique)
+}
+
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     throw 'PowerShell 7 or newer is required.'
 }
@@ -149,7 +183,7 @@ if (-not $SkipDomainGates) {
         throw 'Domain status must be confirmed Normal before creating an ACME Ingress. Pass -DomainStatusNormal only after checking Alibaba Cloud.'
     }
     foreach ($resolver in @('1.1.1.1', '8.8.8.8')) {
-        $answers = @(Resolve-DnsName -Name $Domain -Type A -Server $resolver -ErrorAction Stop | Where-Object Type -eq 'A' | ForEach-Object IPAddress)
+        $answers = @(Resolve-DnsIPv4Address -Name $Domain -Resolver $resolver)
         if ($ExpectedPublicIP -notin $answers) {
             throw "Resolver $resolver does not return $ExpectedPublicIP for $Domain."
         }

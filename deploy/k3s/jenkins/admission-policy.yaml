@@ -1,0 +1,80 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: anime-companion-jenkins-jobs
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["jobs"]
+  matchConditions:
+    - name: jenkins-deployer-only
+      expression: >-
+        request.userInfo.username ==
+        'system:serviceaccount:anime-companion:jenkins-deployer'
+  validations:
+    - expression: >-
+        object.metadata.namespace == 'anime-companion' &&
+        object.metadata.name in ['database-migrate', 'seed-admin']
+      message: Jenkins may create only the two fixed Anime Companion release Jobs.
+    - expression: >-
+        object.spec.template.spec.serviceAccountName == 'anime-companion-jobs' &&
+        object.spec.template.spec.restartPolicy == 'Never'
+      message: Jenkins release Jobs must use the restricted jobs ServiceAccount and Never restart policy.
+    - expression: >-
+        has(object.spec.template.spec.initContainers) &&
+        object.spec.template.spec.initContainers.size() == 1 &&
+        object.spec.template.spec.initContainers[0].name == 'wait-for-postgres' &&
+        object.spec.template.spec.initContainers[0].image ==
+        'postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777'
+      message: Jenkins release Jobs must use only the pinned PostgreSQL readiness init container.
+    - expression: >-
+        object.spec.template.spec.containers.size() == 1 &&
+        ((object.metadata.name == 'database-migrate' &&
+          object.spec.template.spec.containers[0].name == 'migrate' &&
+          object.spec.template.spec.containers[0].image.startsWith(
+            'crpi-tdza3fhgg6tbwte7.ap-southeast-1.personal.cr.aliyuncs.com/anime-companion/migrate:'
+          )) ||
+         (object.metadata.name == 'seed-admin' &&
+          object.spec.template.spec.containers[0].name == 'seed-admin' &&
+          object.spec.template.spec.containers[0].image.startsWith(
+            'crpi-tdza3fhgg6tbwte7.ap-southeast-1.personal.cr.aliyuncs.com/anime-companion/gateway:'
+          )))
+      message: Jenkins release Jobs must use the expected immutable application image repository.
+    - expression: >-
+        (!has(object.spec.template.spec.hostNetwork) || object.spec.template.spec.hostNetwork == false) &&
+        (!has(object.spec.template.spec.hostPID) || object.spec.template.spec.hostPID == false) &&
+        (!has(object.spec.template.spec.hostIPC) || object.spec.template.spec.hostIPC == false) &&
+        (!has(object.spec.template.spec.volumes) ||
+         object.spec.template.spec.volumes.all(volume, !has(volume.hostPath))) &&
+        has(object.spec.template.spec.securityContext) &&
+        object.spec.template.spec.securityContext.runAsNonRoot == true &&
+        object.spec.template.spec.securityContext.seccompProfile.type == 'RuntimeDefault' &&
+        object.spec.template.spec.containers.all(container,
+          has(container.securityContext) &&
+          container.securityContext.allowPrivilegeEscalation == false &&
+          container.securityContext.readOnlyRootFilesystem == true &&
+          container.securityContext.capabilities.drop.exists(capability, capability == 'ALL') &&
+          (!has(container.securityContext.privileged) || container.securityContext.privileged == false)) &&
+        object.spec.template.spec.initContainers.all(container,
+          has(container.securityContext) &&
+          container.securityContext.allowPrivilegeEscalation == false &&
+          container.securityContext.readOnlyRootFilesystem == true &&
+          container.securityContext.capabilities.drop.exists(capability, capability == 'ALL') &&
+          (!has(container.securityContext.privileged) || container.securityContext.privileged == false))
+      message: Jenkins release Jobs must retain the restricted pod and container security contexts.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: anime-companion-jenkins-jobs
+spec:
+  policyName: anime-companion-jenkins-jobs
+  validationActions: ["Deny"]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: anime-companion

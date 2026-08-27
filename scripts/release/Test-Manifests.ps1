@@ -111,6 +111,17 @@ try {
     if (-not $preflightText.Contains("-ExpectedValues @{ OSS_PREFIX = '$canonicalOssPrefix' }")) {
         throw 'Preflight must reject an OSS Secret whose prefix does not match the lifecycle rule.'
     }
+    foreach ($dnsFallbackMarker in @(
+        "Get-Command 'Resolve-DnsName'",
+        "Assert-CommandAvailable 'dig'",
+        'Invoke-NativeCommand -FilePath ''dig'' -ArgumentList @(''+short'', ''A'', $Name, "@$Resolver") -CaptureOutput',
+        '[Net.IPAddress]::TryParse([string]$candidate, [ref]$parsedAddress)',
+        'Resolve-DnsIPv4Address -Name $Domain -Resolver $resolver'
+    )) {
+        if (-not $preflightText.Contains($dnsFallbackMarker)) {
+            throw "Preflight is missing cross-platform DNS guard '$dnsFallbackMarker'."
+        }
+    }
     foreach ($databaseJobFile in @('migration-job.yaml', 'seed-job.yaml')) {
         $databaseJobText = [IO.File]::ReadAllText((Join-Path $repoRoot "deploy\k3s\base\$databaseJobFile"))
         foreach ($databaseReadinessMarker in @(
@@ -191,6 +202,10 @@ try {
     }
 
     $releaseText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Release-K3s.ps1'))
+    $jenkinsDeployText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Deploy-Jenkins.ps1'))
+    $jenkinsfileText = [IO.File]::ReadAllText((Join-Path $repoRoot 'Jenkinsfile'))
+    $jenkinsRbacText = [IO.File]::ReadAllText((Join-Path $repoRoot 'deploy\k3s\jenkins\rbac.yaml'))
+    $jenkinsAdmissionText = [IO.File]::ReadAllText((Join-Path $repoRoot 'deploy\k3s\jenkins\admission-policy.yaml'))
     $rollbackText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Rollback-K3s.ps1'))
     $smokeText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Smoke-K3s.ps1'))
     foreach ($redirectProbeMarker in @(
@@ -204,6 +219,98 @@ try {
     }
     if ($rollbackText.Contains("'patch', 'configmap', 'anime-companion-config'")) {
         throw 'Rollback must not update shared release identity before application rollout succeeds.'
+    }
+    foreach ($continuousDeploymentMarker in @(
+        '[switch]$ContinuousDeployment',
+        'if (-not $ContinuousDeployment -and -not $SshTarget)',
+        "if (`$ContinuousDeployment -and `$Environment -ne 'production')",
+        'SkipSecretChecks = $ContinuousDeployment',
+        'Restore-RecordedApplicationImages',
+        '$applicationsTouched = $true',
+        'Automatic application rollback completed; release metadata was not advanced.'
+    )) {
+        if (-not $releaseText.Contains($continuousDeploymentMarker)) {
+            throw "Release is missing the continuous-deployment guard '$continuousDeploymentMarker'."
+        }
+    }
+    foreach ($continuousDeploymentPattern in @(
+        '(?s)if \(-not \$ContinuousDeployment\)\s*\{\s*\$manifestTests\.ServerValidation = \$true\s*\}',
+        "(?s)if \(-not \`$ContinuousDeployment\)\s*\{\s*Apply-Manifest 'deploy\\k3s\\base\\namespace\.yaml'\s*\}",
+        "(?s)if \(-not \`$ContinuousDeployment\)\s*\{\s*Apply-Manifest 'deploy\\k3s\\cert-manager\\issuers\.yaml'\s*\}"
+    )) {
+        if ($releaseText -notmatch $continuousDeploymentPattern) {
+            throw "Continuous deployment is missing a scoped compatibility guard matching '$continuousDeploymentPattern'."
+        }
+    }
+    foreach ($jenkinsDeployMarker in @(
+        "@('registry', 'acmeEmail', 'smtpFrom', 'ossEndpoint', 'domain', 'expectedPublicIP')",
+        "'--ignore-not-found=true'",
+        '$deployedBackendCommit -ceq $backendCommit -and $deployedFrontendCommit -ceq $frontendCommit',
+        "Environment = 'production'",
+        'DomainStatusNormal = $true',
+        'ConfirmStagingCertificateValidated = $true',
+        'ContinuousDeployment = $true',
+        "'rollout', 'status', 'deployment/gateway'",
+        'certificate/animecompanion-icu-production-tls',
+        "scripts\release\Smoke-K3s.ps1",
+        'creating a recovery release',
+        "https://127.0.0.1:16443"
+    )) {
+        if (-not $jenkinsDeployText.Contains($jenkinsDeployMarker)) {
+            throw "Jenkins release wrapper is missing safety marker '$jenkinsDeployMarker'."
+        }
+    }
+    if ($jenkinsDeployText.Contains('SshTarget =')) {
+        throw 'Jenkins release wrapper must not bypass the API tunnel with an SSH preflight target.'
+    }
+    foreach ($jenkinsfileMarker in @(
+        "agent { label 'anime-companion-builder' }",
+        'disableConcurrentBuilds()',
+        'skipDefaultCheckout(true)',
+        "credentialsId: 'acr-push'",
+        "credentialsId: 'k3s-tunnel-ssh'",
+        "credentialsId: 'k3s-deployer-kubeconfig'",
+        "credentialsId: 'server-known-hosts'",
+        "credentialsId: 'anime-companion-release-parameters'",
+        "target='jenkins-k3s-tunnel@20.78.58.0'",
+        '-L 127.0.0.1:16443:127.0.0.1:6443',
+        'trap close_stage_tunnel EXIT',
+        '-o ServerAliveInterval=30',
+        '-o ServerAliveCountMax=3',
+        "mktemp -d '/tmp/anime-companion-jenkins.XXXXXX'",
+        '/tmp/anime-companion-jenkins.*) ;;',
+        'export DOCKER_CONFIG="$DEPLOY_TEMP_DIR/docker-config"',
+        'DOCKER_CONFIG="$DEPLOY_TEMP_DIR/docker-config" docker logout',
+        'docker logout "$registry_host"',
+        'rm -rf -- "$DEPLOY_TEMP_DIR"'
+    )) {
+        if (-not $jenkinsfileText.Contains($jenkinsfileMarker)) {
+            throw "Jenkinsfile is missing safety marker '$jenkinsfileMarker'."
+        }
+    }
+    if ($jenkinsfileText -match '(?i)sshagent') {
+        throw 'Jenkinsfile must use credentials binding rather than the SSH Agent plugin.'
+    }
+    foreach ($admissionMarker in @(
+        'kind: ValidatingAdmissionPolicy',
+        'kind: ValidatingAdmissionPolicyBinding',
+        "request.userInfo.username ==",
+        "object.metadata.name in ['database-migrate', 'seed-admin']",
+        'object.spec.template.spec.serviceAccountName',
+        'object.spec.template.spec.volumes.all(volume, !has(volume.hostPath))'
+    )) {
+        if (-not $jenkinsAdmissionText.Contains($admissionMarker)) {
+            throw "Jenkins Job admission policy is missing safety marker '$admissionMarker'."
+        }
+    }
+    foreach ($unsafeRbacMarker in @(
+        'resources: ["deployments", "statefulsets"]',
+        'resources: ["networkpolicies", "ingresses"]',
+        'verbs: ["get", "create", "patch"]'
+    )) {
+        if ($jenkinsRbacText.Contains($unsafeRbacMarker)) {
+            throw "Jenkins RBAC still contains an overly broad workload rule '$unsafeRbacMarker'."
+        }
     }
     foreach ($identityReplacement in @(
         "'release-id-placeholder' = `$ReleaseTag",
@@ -227,7 +334,9 @@ try {
         "'wait', '--for=condition=complete', 'job/database-migrate'",
         "Apply-Manifest 'deploy\k3s\base\seed-job.yaml'",
         "'wait', '--for=condition=complete', 'job/seed-admin'",
-        "Apply-Manifest 'deploy\k3s\base\applications.yaml'"
+        "Apply-Manifest 'deploy\k3s\base\applications.yaml'",
+        "& (Join-Path `$PSScriptRoot 'Smoke-K3s.ps1')",
+        "Invoke-Kubectl -Context `$KubeContext -ArgumentList @('apply', '-f', `$releaseMetadataPath)"
     )
     $previousMarkerIndex = -1
     foreach ($marker in $orderedReleaseMarkers) {

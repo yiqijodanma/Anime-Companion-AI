@@ -11,13 +11,14 @@ param(
     [string]$ReleaseTag,
     [string]$FrontendPath = (Join-Path $PSScriptRoot '..\..\..\Anime-Companion-ai-sos-chat-fronted'),
     [string]$KubeContext,
-    [Parameter(Mandatory)][string]$SshTarget,
+    [string]$SshTarget,
     [switch]$DomainStatusNormal,
     [switch]$ConfirmStagingCertificateValidated,
     [switch]$SkipIngress,
     [switch]$SkipBuild,
     [switch]$SkipSmoke,
-    [switch]$SkipExternalNetworkChecks
+    [switch]$SkipExternalNetworkChecks,
+    [switch]$ContinuousDeployment
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,8 +38,14 @@ if ($Registry -match '^https?://' -or $Registry -notmatch '^[A-Za-z0-9.-]+(?::\d
 if ($OssEndpoint -notmatch '^[A-Za-z0-9.-]+$') {
     throw 'OssEndpoint must be an OSS hostname without a URL scheme or path.'
 }
-if ($SshTarget -notmatch '^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$') {
+if (-not $ContinuousDeployment -and -not $SshTarget) {
+    throw 'SshTarget is required unless -ContinuousDeployment is used.'
+}
+if ($SshTarget -and $SshTarget -notmatch '^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$') {
     throw 'SshTarget must use the safe user@host form.'
+}
+if ($ContinuousDeployment -and $Environment -ne 'production') {
+    throw '-ContinuousDeployment is restricted to the production environment.'
 }
 if ($AcmeEmail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') {
     throw 'AcmeEmail is not a valid contact email address.'
@@ -69,7 +76,14 @@ $images = [ordered]@{
 }
 foreach ($image in $images.Values) { Assert-ImmutableImageReference $image }
 
-& (Join-Path $PSScriptRoot 'Test-Manifests.ps1') -Environment $Environment -KubeContext $KubeContext -ServerValidation
+$manifestTests = @{
+    Environment = $Environment
+    KubeContext = $KubeContext
+}
+if (-not $ContinuousDeployment) {
+    $manifestTests.ServerValidation = $true
+}
+& (Join-Path $PSScriptRoot 'Test-Manifests.ps1') @manifestTests
 $preflight = @{
     Environment = $Environment
     KubeContext = $KubeContext
@@ -81,6 +95,7 @@ $preflight = @{
     DomainStatusNormal = $DomainStatusNormal
     SkipDomainGates = $SkipIngress
     SkipExternalNetworkChecks = $SkipExternalNetworkChecks
+    SkipSecretChecks = $ContinuousDeployment
 }
 & (Join-Path $PSScriptRoot 'Preflight-K3s.ps1') @preflight
 
@@ -182,15 +197,50 @@ try {
 catch {
     # First deployment has no previous release identity.
 }
+
+function Restore-RecordedApplicationImages {
+    param(
+        [Parameter(Mandatory)][string]$GatewayImage,
+        [Parameter(Mandatory)][string]$AgentImage
+    )
+
+    Assert-ImmutableImageReference $GatewayImage
+    Assert-ImmutableImageReference $AgentImage
+    Invoke-Kubectl -Context $KubeContext -ArgumentList @(
+        '-n', 'anime-companion', 'set', 'image', 'deployment/gateway', "gateway=$GatewayImage"
+    )
+    Invoke-Kubectl -Context $KubeContext -ArgumentList @(
+        '-n', 'anime-companion', 'set', 'image', 'deployment/agent', "agent=$AgentImage"
+    )
+    Invoke-Kubectl -Context $KubeContext -ArgumentList @(
+        '-n', 'anime-companion', 'rollout', 'status', 'deployment/agent', '--timeout=10m'
+    )
+    Invoke-Kubectl -Context $KubeContext -ArgumentList @(
+        '-n', 'anime-companion', 'rollout', 'status', 'deployment/gateway', '--timeout=10m'
+    )
+}
+
 if ($hasPreviousReleaseMetadata -and
     (($recordedGatewayImage -and $recordedGatewayImage -ne $previousGatewayImage) -or
      ($recordedAgentImage -and $recordedAgentImage -ne $previousAgentImage))) {
-    throw 'Deployment images differ from anime-companion-release metadata. Reconcile the manual drift before creating another release.'
+    if (-not $ContinuousDeployment) {
+        throw 'Deployment images differ from anime-companion-release metadata. Reconcile the manual drift before creating another release.'
+    }
+    if (-not $recordedGatewayImage -or -not $recordedAgentImage) {
+        throw 'Continuous deployment cannot recover drift because the recorded application images are incomplete.'
+    }
+    Write-Warning 'Application images differ from the last recorded release; restoring the recorded images before retrying deployment.'
+    Restore-RecordedApplicationImages -GatewayImage $recordedGatewayImage -AgentImage $recordedAgentImage
+    $previousGatewayImage = $recordedGatewayImage
+    $previousAgentImage = $recordedAgentImage
 }
 
 $temporaryDirectory = New-TemporaryDirectory
+$applicationsTouched = $false
 try {
-    Apply-Manifest 'deploy\k3s\base\namespace.yaml'
+    if (-not $ContinuousDeployment) {
+        Apply-Manifest 'deploy\k3s\base\namespace.yaml'
+    }
     Apply-Manifest 'deploy\k3s\base\platform.yaml'
     Apply-Manifest 'deploy\k3s\base\network-policies.yaml'
     Apply-Manifest 'deploy\k3s\base\data.yaml'
@@ -205,11 +255,14 @@ try {
     Apply-Manifest 'deploy\k3s\base\seed-job.yaml'
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('-n', 'anime-companion', 'wait', '--for=condition=complete', 'job/seed-admin', '--timeout=5m')
 
+    $applicationsTouched = $true
     Apply-Manifest 'deploy\k3s\base\applications.yaml'
     Apply-Manifest 'deploy\k3s\base\backup.yaml'
     Apply-Manifest 'deploy\k3s\base\traefik-middleware.yaml'
     if (-not $SkipIngress) {
-        Apply-Manifest 'deploy\k3s\cert-manager\issuers.yaml'
+        if (-not $ContinuousDeployment) {
+            Apply-Manifest 'deploy\k3s\cert-manager\issuers.yaml'
+        }
         $issuerName = if ($Environment -eq 'staging') { 'letsencrypt-staging' } else { 'letsencrypt-production' }
         Invoke-Kubectl -Context $KubeContext -ArgumentList @('wait', '--for=condition=Ready', "clusterissuer/$issuerName", '--timeout=5m')
         Apply-Manifest "deploy\k3s\overlays\$Environment\ingress.yaml"
@@ -219,6 +272,10 @@ try {
 
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('-n', 'anime-companion', 'rollout', 'status', 'deployment/agent', '--timeout=10m')
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('-n', 'anime-companion', 'rollout', 'status', 'deployment/gateway', '--timeout=10m')
+
+    if (-not $SkipSmoke -and -not $SkipIngress) {
+        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1') -Domain $Domain -AllowUntrustedTls:($Environment -eq 'staging')
+    }
 
     $releaseMetadata = Invoke-Kubectl -Context $KubeContext -ArgumentList @(
         '-n', 'anime-companion', 'create', 'configmap', 'anime-companion-release',
@@ -240,10 +297,20 @@ try {
     $releaseMetadataPath = Join-Path $temporaryDirectory 'release-metadata.yaml'
     [IO.File]::WriteAllText($releaseMetadataPath, $releaseMetadata, [Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Context $KubeContext -ArgumentList @('apply', '-f', $releaseMetadataPath)
-
-    if (-not $SkipSmoke -and -not $SkipIngress) {
-        & (Join-Path $PSScriptRoot 'Smoke-K3s.ps1') -Domain $Domain -AllowUntrustedTls:($Environment -eq 'staging')
+}
+catch {
+    $releaseFailure = $_
+    if ($ContinuousDeployment -and $applicationsTouched -and $previousGatewayImage -and $previousAgentImage) {
+        try {
+            Write-Warning 'Release failed after application deployment started; restoring the previously running application images.'
+            Restore-RecordedApplicationImages -GatewayImage $previousGatewayImage -AgentImage $previousAgentImage
+            Write-Warning 'Automatic application rollback completed; release metadata was not advanced.'
+        }
+        catch {
+            throw "Release failed and automatic application rollback also failed. Release error: $($releaseFailure.Exception.Message) Rollback error: $($_.Exception.Message)"
+        }
     }
+    throw $releaseFailure
 }
 finally {
     if ([IO.Directory]::Exists($temporaryDirectory)) {
