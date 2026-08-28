@@ -2,6 +2,9 @@
 
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
+ENV GOMAXPROCS=1 \
+    GOMEMLIMIT=256MiB
+
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 

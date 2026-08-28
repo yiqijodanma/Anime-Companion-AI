@@ -38,7 +38,7 @@ pipeline {
         stage('Backend tests') {
             steps {
                 dir('backend') {
-                    sh 'GOMAXPROCS=2 go test -p 2 ./...'
+                    sh 'GOMAXPROCS=1 GOMEMLIMIT=256MiB go test -p 1 ./...'
                 }
             }
         }
@@ -47,7 +47,7 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh 'npm ci --no-audit --no-fund'
-                    sh 'npm run build'
+                    sh 'NODE_OPTIONS=--max-old-space-size=256 npm run build'
                 }
             }
         }

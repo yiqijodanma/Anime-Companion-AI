@@ -204,6 +204,8 @@ try {
     $releaseText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Release-K3s.ps1'))
     $jenkinsDeployText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Deploy-Jenkins.ps1'))
     $jenkinsfileText = [IO.File]::ReadAllText((Join-Path $repoRoot 'Jenkinsfile'))
+    $gatewayDockerfileText = [IO.File]::ReadAllText((Join-Path $repoRoot 'Dockerfile.gateway'))
+    $agentDockerfileText = [IO.File]::ReadAllText((Join-Path $repoRoot 'Dockerfile.agent'))
     $jenkinsRbacText = [IO.File]::ReadAllText((Join-Path $repoRoot 'deploy\k3s\jenkins\rbac.yaml'))
     $jenkinsAdmissionText = [IO.File]::ReadAllText((Join-Path $repoRoot 'deploy\k3s\jenkins\admission-policy.yaml'))
     $rollbackText = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\release\Rollback-K3s.ps1'))
@@ -267,6 +269,8 @@ try {
         "agent { label 'anime-companion-builder' }",
         'disableConcurrentBuilds()',
         'skipDefaultCheckout(true)',
+        'GOMAXPROCS=1 GOMEMLIMIT=256MiB go test -p 1 ./...',
+        'NODE_OPTIONS=--max-old-space-size=256 npm run build',
         "credentialsId: 'acr-push'",
         "credentialsId: 'k3s-tunnel-ssh'",
         "credentialsId: 'k3s-deployer-kubeconfig'",
@@ -290,6 +294,16 @@ try {
     }
     if ($jenkinsfileText -match '(?i)sshagent') {
         throw 'Jenkinsfile must use credentials binding rather than the SSH Agent plugin.'
+    }
+    foreach ($resourceLimitedDockerfile in @($gatewayDockerfileText, $agentDockerfileText)) {
+        foreach ($resourceLimitMarker in @('GOMAXPROCS=1', 'GOMEMLIMIT=256MiB')) {
+            if (-not $resourceLimitedDockerfile.Contains($resourceLimitMarker)) {
+                throw "Go image builders must preserve the resource limit '$resourceLimitMarker'."
+            }
+        }
+    }
+    if (-not $gatewayDockerfileText.Contains('NODE_OPTIONS=--max-old-space-size=256')) {
+        throw 'The frontend image builder must preserve its Node.js memory limit.'
     }
     foreach ($admissionMarker in @(
         'kind: ValidatingAdmissionPolicy',

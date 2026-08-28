@@ -4,6 +4,8 @@
 # package-lock.json + npm ci make the build deterministic for a given commit.
 FROM node:22-alpine AS frontend-builder
 
+ENV NODE_OPTIONS=--max-old-space-size=256
+
 WORKDIR /frontend
 COPY --from=frontend package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -14,6 +16,9 @@ ENV VITE_API_BASE_URL=""
 RUN npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend-builder
+
+ENV GOMAXPROCS=1 \
+    GOMEMLIMIT=256MiB
 
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
